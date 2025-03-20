@@ -1,0 +1,102 @@
+package com.springboot.pos.service.impl;
+
+import com.springboot.pos.exception.ResourceNotFoundException;
+import com.springboot.pos.model.Product;
+import com.springboot.pos.payload.ProductDto;
+import com.springboot.pos.payload.ProductResponse;
+import com.springboot.pos.repository.ProductRepository;
+import com.springboot.pos.service.ProductService;
+import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+public class ProductServiceImpl implements ProductService {
+
+    private ProductRepository productRepository;
+    private ModelMapper mapper;
+
+    public ProductServiceImpl(ProductRepository productRepository, ModelMapper mapper) {
+        this.productRepository = productRepository;
+        this.mapper = mapper;
+    }
+
+    @Override
+    public ProductDto createProduct(ProductDto productDto) {
+        Product product = mapToEntity(productDto);
+        Product newProduct = productRepository.save(product);
+
+        //convert entity to DTO
+        ProductDto productResponse = mapToDTO(newProduct);
+        return productResponse;
+    }
+
+
+    //convert DTO to entity
+    @Override
+    public ProductResponse getAllProducts(int pageNo, int pageSize, String sortBy, String sortDir) {
+
+        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name()) ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+        Pageable pageable = PageRequest.of(pageNo, pageSize, sort);
+        Page<Product> products = productRepository.findAll(pageable);
+
+
+        // get content from page object
+        List<Product> listOfProducts = products.getContent();
+        List<ProductDto> name = listOfProducts.stream().map(product -> mapToDTO(product)).collect(Collectors.toList());
+        ProductResponse productResponse = new ProductResponse();
+        productResponse.setName(name);
+        productResponse.setPageNo(products.getNumber());
+        productResponse.setPageSize(products.getSize());
+        productResponse.setTotalElements(products.getTotalElements());
+        productResponse.setTotalPages(products.getTotalPages());
+        productResponse.setLast(products.isLast());
+
+        return productResponse;
+    }
+
+    @Override
+    public ProductDto getProductById(long id) {
+        Product product = productRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
+        return mapToDTO(product);
+    }
+
+    @Override
+    public ProductDto updateProduct(ProductDto productDto, long id) {
+        Product product = productRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
+        product.setName(productDto.getName());
+        product.setBarcode(productDto.getBarcode());
+        product.setPrice(productDto.getPrice());
+        productDto.setStock(productDto.getStock());
+        productDto.setCategory(productDto.getCategory());
+        productDto.setSupplier(productDto.getSupplier());
+        productDto.setCategory(productDto.getCategory());
+        productDto.setCreatedAt(productDto.getUpdatedAt());
+        productDto.setUpdatedAt(productDto.getUpdatedAt());
+        Product updatedProduct = productRepository.save(product);
+        return mapToDTO(updatedProduct);
+    }
+
+    @Override
+    public void deleteProductById(long id) {
+        Product product = productRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
+        productRepository.delete(product);
+
+    }
+    // converted entity into DTO
+    private ProductDto mapToDTO(Product product) {
+        ProductDto productDto = mapper.map(product, ProductDto.class);
+        return productDto;
+    }
+
+    private Product mapToEntity(ProductDto productDto) {
+        Product product = mapper.map(productDto, Product.class);
+        return product;
+    }
+}
+
