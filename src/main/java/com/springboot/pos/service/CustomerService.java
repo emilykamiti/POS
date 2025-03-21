@@ -3,10 +3,15 @@ package com.springboot.pos.service;
 
 import com.springboot.pos.payload.CustomerDto;
 import com.springboot.pos.payload.CustomerResponse;
+import com.springboot.pos.payload.ProductDto;
+import com.springboot.pos.payload.ProductResponse;
 
-public interface CustomerService { CustomerDto createProduct(CustomerDto customerDto);
 
-    CustomerResponse getAllCustomers(int pageNo, int pageSize, String sortBy, String sortDir);
+public interface CustomerService {
+
+    CustomerDto createCustomers(CustomerDto customerDto);
+
+   CustomerResponse getAllCustomers(int pageNo, int pageSize, String sortBy, String sortDir);
 
     CustomerDto getCustomerById(long id);
 
@@ -14,3 +19,4 @@ public interface CustomerService { CustomerDto createProduct(CustomerDto custome
 
     void deleteCustomerById(long id);
 }
+

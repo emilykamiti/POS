@@ -13,18 +13,26 @@ import java.util.Date;
     @Setter
     @AllArgsConstructor
     @NoArgsConstructor
-
     @Entity
     @Table(name = "products")
     public class Product {
         @Id
         @GeneratedValue(strategy = GenerationType.IDENTITY)
         private Long id;
+
+        @Column(name = "name", nullable = false)
         private String name;
-        private String barcode;
+
+        @Column(name = "price", nullable = false)
         private BigDecimal price;
+
+        @Column(name = "stock", nullable = false)
         private int stock;
+
+        @Column(name = "createdAt", nullable = false)
         private Date createdAt ;
+
+        @Column(name = "updatedAr", nullable = false)
         private Date updatedAt;
 
         @ManyToOne

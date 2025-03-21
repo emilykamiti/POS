@@ -1,5 +1,6 @@
 package com.springboot.pos.payload;
 
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -20,13 +21,13 @@ public class ProductDto {
     @Size(min = 2, message = "name should have at least 2 characters")
     private String name;
 
-    @NotEmpty
+
     private String barcode;
 
-    @NotEmpty
+    @NotNull
     private int stock;
 
-    @NotEmpty
+    @NotNull
     private BigDecimal price;
 
 

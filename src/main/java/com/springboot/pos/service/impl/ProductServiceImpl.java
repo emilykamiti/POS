@@ -11,10 +11,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Service
 public class ProductServiceImpl implements ProductService {
 
     private ProductRepository productRepository;
@@ -27,6 +29,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ProductDto createProduct(ProductDto productDto) {
+        //convert DTO to entity
         Product product = mapToEntity(productDto);
         Product newProduct = productRepository.save(product);
 
@@ -35,22 +38,18 @@ public class ProductServiceImpl implements ProductService {
         return productResponse;
     }
 
-
-    //convert DTO to entity
     @Override
     public ProductResponse getAllProducts(int pageNo, int pageSize, String sortBy, String sortDir) {
 
-        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name()) ? Sort.by(sortBy).ascending()
-                : Sort.by(sortBy).descending();
+        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name()) ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(pageNo, pageSize, sort);
         Page<Product> products = productRepository.findAll(pageable);
 
-
         // get content from page object
         List<Product> listOfProducts = products.getContent();
-        List<ProductDto> name = listOfProducts.stream().map(product -> mapToDTO(product)).collect(Collectors.toList());
+        List<ProductDto> content = listOfProducts.stream().map(product -> mapToDTO(product)).collect(Collectors.toList());
         ProductResponse productResponse = new ProductResponse();
-        productResponse.setName(name);
+        productResponse.setContent(content);
         productResponse.setPageNo(products.getNumber());
         productResponse.setPageSize(products.getSize());
         productResponse.setTotalElements(products.getTotalElements());
@@ -70,14 +69,11 @@ public class ProductServiceImpl implements ProductService {
     public ProductDto updateProduct(ProductDto productDto, long id) {
         Product product = productRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
         product.setName(productDto.getName());
-        product.setBarcode(productDto.getBarcode());
         product.setPrice(productDto.getPrice());
-        productDto.setStock(productDto.getStock());
-        productDto.setCategory(productDto.getCategory());
-        productDto.setSupplier(productDto.getSupplier());
-        productDto.setCategory(productDto.getCategory());
-        productDto.setCreatedAt(productDto.getUpdatedAt());
-        productDto.setUpdatedAt(productDto.getUpdatedAt());
+        product.setStock(productDto.getStock());
+        product.setUpdatedAt(productDto.getUpdatedAt());
+        product.setUpdatedAt(productDto.getUpdatedAt());
+
         Product updatedProduct = productRepository.save(product);
         return mapToDTO(updatedProduct);
     }
@@ -88,6 +84,7 @@ public class ProductServiceImpl implements ProductService {
         productRepository.delete(product);
 
     }
+
     // converted entity into DTO
     private ProductDto mapToDTO(Product product) {
         ProductDto productDto = mapper.map(product, ProductDto.class);
@@ -99,4 +96,3 @@ public class ProductServiceImpl implements ProductService {
         return product;
     }
 }
-

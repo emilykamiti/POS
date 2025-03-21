@@ -2,11 +2,17 @@ package com.springboot.pos.payload;
 
 
 
-import java.util.List;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
+import java.util.List;
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class CustomerResponse {
 
-    private List<CustomerDto> name;
+    private List<CustomerDto> content;
     private int pageNo;
     private int pageSize;
     private long totalElements;

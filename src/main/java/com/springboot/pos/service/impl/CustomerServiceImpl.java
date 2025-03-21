@@ -1,10 +1,9 @@
 package com.springboot.pos.service.impl;
 
 import com.springboot.pos.exception.ResourceNotFoundException;
-import com.springboot.pos.model.Product;
+import com.springboot.pos.model.Customer;
 import com.springboot.pos.payload.CustomerDto;
 import com.springboot.pos.payload.CustomerResponse;
-import com.springboot.pos.payload.ProductDto;
 import com.springboot.pos.repository.CustomerRepository;
 import com.springboot.pos.service.CustomerService;
 import org.modelmapper.ModelMapper;
@@ -17,22 +16,24 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class CustomerServiceImpl implements CustomerService {
-    private ModelMapper mapper;
-    private CustomerRepository customerRepository;
 
-    public CustomerServiceImpl(ModelMapper mapper, CustomerRepository customerRepository) {
-        this.mapper = mapper;
+    private CustomerRepository customerRepository;
+    private ModelMapper mapper;
+
+    public CustomerServiceImpl(CustomerRepository customerRepository, ModelMapper mapper) {
         this.customerRepository = customerRepository;
+        this.mapper = mapper;
     }
 
 
     @Override
-    public CustomerDto createCustomer(CustomerDto customerDto) {
-        Customer customer = maptoEntity(customerDto);
+    public CustomerDto createCustomers(CustomerDto customerDto) {
+        Customer customer = mapToEntity(customerDto);
         Customer newCustomer = customerRepository.save(customer);
 
+        //convert entity to DTO
         CustomerDto customerResponse = mapToDTO(newCustomer);
-        return null;
+        return customerResponse;
     }
 
     @Override
@@ -41,12 +42,11 @@ public class CustomerServiceImpl implements CustomerService {
         Pageable pageable = PageRequest.of(pageNo, pageSize, sort);
         Page<Customer> customers = customerRepository.findAll(pageable);
 
-
         // get content from page object
         List<Customer> listOfCustomers = customers.getContent();
-        List<ProductDto> name = listOfCustomers.stream().map(product -> mapToDTO(customer)).collect(Collectors.toList());
+        List<CustomerDto> content = listOfCustomers.stream().map(customer -> mapToDTO(customer)).collect(Collectors.toList());
         CustomerResponse customerResponse = new CustomerResponse();
-        customerResponse.setName(name);
+        customerResponse.setContent(content);
         customerResponse.setPageNo(customers.getNumber());
         customerResponse.setPageSize(customers.getSize());
         customerResponse.setTotalElements(customers.getTotalElements());
@@ -60,41 +60,34 @@ public class CustomerServiceImpl implements CustomerService {
     public CustomerDto getCustomerById(long id) {
         Customer customer = customerRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Customer", "id", id));
         return mapToDTO(customer);
-
     }
 
     @Override
     public CustomerDto updateCustomer(CustomerDto customerDto, long id) {
-        Customer customer = customer.findById(id).orElseThrow(() -> new ResourceNotFoundException("Customer", "id", id));
+        Customer customer = customerRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Customer", "id", id));
         customer.setName(customerDto.getName());
-        customer.setBarcode(customerDto.getBarcode());
-        customer.setPrice(customerDto.getPrice());
-        customerDto.setStock(customerDto.getStock());
-        customerDto.setCategory(customerDto.getCategory());
-        customerDto.setSupplier(customerDto.getSupplier());
-        customerDto.setCategory(customerDto.getCategory());
-        customerDto.setCreatedAt(customerDto.getUpdatedAt());
+        customer.setEmail(customerDto.getEmail());
+        customer.setLoyaltyPoints(customerDto.getLoyaltyPoints());
+        customer.setPhone(customerDto.getPhone());
+        customer.setCreatedAt(customerDto.getCreatedAt());
+
         Customer updatedCustomer = customerRepository.save(customer);
         return mapToDTO(updatedCustomer);
     }
 
     @Override
     public void deleteCustomerById(long id) {
-        Customer customer = customerRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Customer", "id", id));
+        Customer customer = customerRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("customer", "id", id));
         customerRepository.delete(customer);
     }
 
-    // convert entity into DTO
     private CustomerDto mapToDTO(Customer customer) {
         CustomerDto customerDto = mapper.map(customer, CustomerDto.class);
-
         return customerDto;
     }
 
-    //convert DTO into entity
-    private Customer maptoEntity(CustomerDto customerDto) {
+    private Customer mapToEntity(CustomerDto customerDto) {
         Customer customer = mapper.map(customerDto, Customer.class);
         return customer;
-
     }
 }
