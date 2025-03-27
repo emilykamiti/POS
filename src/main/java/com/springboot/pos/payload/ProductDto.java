@@ -1,6 +1,7 @@
 package com.springboot.pos.payload;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -21,8 +22,11 @@ public class ProductDto {
     @Size(min = 2, message = "name should have at least 2 characters")
     private String name;
 
-
-    private String barcode;
+    //later update to enum.
+    @NotNull
+    @Pattern(regexp = "AVAILABLE|NOT_AVAILABLE",
+            message = "Status must be either 'AVAILABLE' or 'NOT_AVAILABLE'")
+    private String status;
 
     @NotNull
     private int stock;
@@ -31,8 +35,12 @@ public class ProductDto {
     private BigDecimal price;
 
 
-    private Set<CategoryDto> category;
+    private Long categoryId;
+//    private String categoryName;
 
-    private Set<SupplierDto> supplier;
+    private Long supplierId;
+//    private String supplierName;
+
+
 }
 

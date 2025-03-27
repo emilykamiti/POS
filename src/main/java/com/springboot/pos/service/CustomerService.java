@@ -3,8 +3,6 @@ package com.springboot.pos.service;
 
 import com.springboot.pos.payload.CustomerDto;
 import com.springboot.pos.payload.CustomerResponse;
-import com.springboot.pos.payload.ProductDto;
-import com.springboot.pos.payload.ProductResponse;
 
 
 public interface CustomerService {

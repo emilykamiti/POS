@@ -1,10 +1,14 @@
 package com.springboot.pos.service.impl;
 
 import com.springboot.pos.exception.ResourceNotFoundException;
+import com.springboot.pos.model.Category;
 import com.springboot.pos.model.Product;
+import com.springboot.pos.model.Supplier;
 import com.springboot.pos.payload.ProductDto;
 import com.springboot.pos.payload.ProductResponse;
+import com.springboot.pos.repository.CategoryRepository;
 import com.springboot.pos.repository.ProductRepository;
+import com.springboot.pos.repository.SupplierRepository;
 import com.springboot.pos.service.ProductService;
 import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
@@ -20,10 +24,17 @@ import java.util.stream.Collectors;
 public class ProductServiceImpl implements ProductService {
 
     private ProductRepository productRepository;
+    private CategoryRepository categoryRepository;
+    private SupplierRepository supplierRepository;
     private ModelMapper mapper;
 
-    public ProductServiceImpl(ProductRepository productRepository, ModelMapper mapper) {
+    public ProductServiceImpl(ProductRepository productRepository,
+                              CategoryRepository categoryRepository,
+                              SupplierRepository supplierRepository,
+                              ModelMapper mapper) {
         this.productRepository = productRepository;
+        this.categoryRepository = categoryRepository;
+        this.supplierRepository = supplierRepository;
         this.mapper = mapper;
     }
 
@@ -68,11 +79,15 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public ProductDto updateProduct(ProductDto productDto, long id) {
         Product product = productRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
+        Category category = categoryRepository.findById(productDto.getCategoryId()).orElseThrow(() -> new ResourceNotFoundException("Category", "id", productDto.getCategoryId()));
+        Supplier supplier = supplierRepository.findById(productDto.getSupplierId()).orElseThrow(() -> new ResourceNotFoundException("Supplier", "id", productDto.getSupplierId()));
         product.setName(productDto.getName());
         product.setPrice(productDto.getPrice());
         product.setStock(productDto.getStock());
         product.setUpdatedAt(productDto.getUpdatedAt());
         product.setUpdatedAt(productDto.getUpdatedAt());
+        product.setCategory(category);
+        product.setSupplier(supplier);
 
         Product updatedProduct = productRepository.save(product);
         return mapToDTO(updatedProduct);
@@ -96,3 +111,4 @@ public class ProductServiceImpl implements ProductService {
         return product;
     }
 }
+

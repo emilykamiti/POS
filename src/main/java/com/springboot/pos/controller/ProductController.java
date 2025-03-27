@@ -7,8 +7,10 @@ import com.springboot.pos.utils.AppConstants;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+@RestController
 @RequestMapping("/api/products")
 public class ProductController {
     private ProductService productService;
@@ -17,6 +19,7 @@ public class ProductController {
         this.productService = productService;
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<ProductDto> createProduct(@Valid @RequestBody ProductDto productDto) {
         return new ResponseEntity<>(productService.createProduct(productDto), HttpStatus.CREATED);
@@ -40,13 +43,14 @@ public class ProductController {
     }
 
     //update post by id rest api
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
-    public ResponseEntity<ProductDto> updatePost(@Valid @RequestBody ProductDto productDto, @PathVariable(name = "id") long id) {
+    public ResponseEntity<ProductDto> updateProduct(@Valid @RequestBody ProductDto productDto, @PathVariable(name = "id") long id) {
         ProductDto productResponse = productService.updateProduct(productDto, id);
         return new ResponseEntity<>(productResponse, HttpStatus.OK);
     }
 
-
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteProduct(@PathVariable(name = "id") long id) {
         productService.deleteProductById(id);
