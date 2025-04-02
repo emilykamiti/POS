@@ -1,4 +1,10 @@
 package com.springboot.pos.repository;
 
-public class SaleRepository {
+import com.springboot.pos.model.Sale;
+import com.springboot.pos.model.Supplier;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface SaleRepository extends JpaRepository<Sale, Long> {
+
 }
+

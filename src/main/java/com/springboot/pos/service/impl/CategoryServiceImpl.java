@@ -2,13 +2,10 @@ package com.springboot.pos.service.impl;
 
 import com.springboot.pos.exception.ResourceNotFoundException;
 import com.springboot.pos.model.Category;
-import com.springboot.pos.model.Supplier;
 import com.springboot.pos.payload.CategoryDto;
 import com.springboot.pos.payload.CategoryResponse;
-import com.springboot.pos.payload.SupplierDto;
 import com.springboot.pos.payload.SupplierResponse;
 import com.springboot.pos.repository.CategoryRepository;
-import com.springboot.pos.repository.SupplierRepository;
 import com.springboot.pos.service.CategoryService;
 import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;

@@ -1,10 +1,7 @@
 package com.springboot.pos.service.impl;
 
 import com.springboot.pos.exception.ResourceNotFoundException;
-import com.springboot.pos.model.Product;
 import com.springboot.pos.model.Supplier;
-import com.springboot.pos.payload.ProductDto;
-import com.springboot.pos.payload.ProductResponse;
 import com.springboot.pos.payload.SupplierDto;
 import com.springboot.pos.payload.SupplierResponse;
 import com.springboot.pos.repository.SupplierRepository;

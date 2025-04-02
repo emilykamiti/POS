@@ -7,19 +7,20 @@ import com.springboot.pos.utils.AppConstants;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+@RestController
 @RequestMapping("/api/customers")
 public class CustomerController {
-
 
     private CustomerService customerService;
 
     public CustomerController(CustomerService customerService) {
         this.customerService = customerService;
-
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<CustomerDto> createCustomers(@Valid @RequestBody CustomerDto customerDto) {
         return new ResponseEntity<>(customerService.createCustomers(customerDto), HttpStatus.CREATED);

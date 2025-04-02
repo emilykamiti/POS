@@ -21,7 +21,7 @@ public class SaleItem {
     private long id;
     private String quantity;
     private BigDecimal price;
-    private BigDecimal subtotal;
+    private BigDecimal totalPrice;
 
     @ManyToOne
     @JoinColumn(name = "sale_id", nullable = false)

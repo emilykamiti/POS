@@ -5,7 +5,9 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
@@ -20,7 +22,14 @@ public class Sale {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
     private String totalAmount;
+
+
+    @Column(columnDefinition = "ENUM('M-PESA', 'VISA-CARD')", nullable = false)
     private String paymentMethod;
+
+    @UpdateTimestamp
+    @Column(name = "sold_at", updatable = false)
+    private LocalDateTime saleDate;
 
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
@@ -31,6 +40,6 @@ public class Sale {
     private Customer customer;
 
     @OneToMany(mappedBy = "sale")
-    private List<SaleItem> saleItems;
+    private List<SaleItem> items;
 
 }

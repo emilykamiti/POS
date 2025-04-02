@@ -1,7 +1,5 @@
 package com.springboot.pos.controller;
 
-import com.springboot.pos.payload.CategoryDto;
-import com.springboot.pos.payload.CategoryResponse;
 import com.springboot.pos.payload.SupplierDto;
 import com.springboot.pos.payload.SupplierResponse;
 import com.springboot.pos.service.SupplierService;

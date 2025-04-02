@@ -28,10 +28,8 @@ public class ProductServiceImpl implements ProductService {
     private SupplierRepository supplierRepository;
     private ModelMapper mapper;
 
-    public ProductServiceImpl(ProductRepository productRepository,
-                              CategoryRepository categoryRepository,
-                              SupplierRepository supplierRepository,
-                              ModelMapper mapper) {
+    public ProductServiceImpl(ProductRepository productRepository, CategoryRepository categoryRepository,
+                              SupplierRepository supplierRepository, ModelMapper mapper) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.supplierRepository = supplierRepository;
