@@ -3,8 +3,7 @@ package com.springboot.pos.service.impl;
 import com.springboot.pos.exception.ResourceNotFoundException;
 import com.springboot.pos.model.Category;
 import com.springboot.pos.payload.CategoryDto;
-import com.springboot.pos.payload.CategoryResponse;
-import com.springboot.pos.payload.SupplierResponse;
+import com.springboot.pos.payload.PagedResponse;
 import com.springboot.pos.repository.CategoryRepository;
 import com.springboot.pos.service.CategoryService;
 import org.modelmapper.ModelMapper;
@@ -38,15 +37,19 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    public CategoryResponse getAllCategories(int pageNo, int pageSize, String sortBy, String sortDir) {
-        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name()) ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+    public PagedResponse<CategoryDto> getAllCategories(int pageNo, int pageSize, String sortBy, String sortDir) {
+        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name())
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(pageNo, pageSize, sort);
         Page<Category> categories = categoryRepository.findAll(pageable);
 
-        // get content from page object
-        List<Category> listOfCategories = categories.getContent();
-        List<CategoryDto> content = listOfCategories.stream().map(category -> mapToDTO(category)).collect(Collectors.toList());
-        CategoryResponse categoryResponse = new CategoryResponse();
+        List<CategoryDto> content = categories.getContent()
+                .stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+
+        PagedResponse<CategoryDto> categoryResponse = new PagedResponse<>();
         categoryResponse.setContent(content);
         categoryResponse.setPageNo(categories.getNumber());
         categoryResponse.setPageSize(categories.getSize());

@@ -19,9 +19,10 @@ public class SaleItem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
-    private String quantity;
-    private BigDecimal price;
+    private int quantity;
+    private BigDecimal unitPrice;
     private BigDecimal totalPrice;
+
 
     @ManyToOne
     @JoinColumn(name = "sale_id", nullable = false)

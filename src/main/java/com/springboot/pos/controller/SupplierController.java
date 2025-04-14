@@ -1,7 +1,7 @@
 package com.springboot.pos.controller;
 
+import com.springboot.pos.payload.PagedResponse;
 import com.springboot.pos.payload.SupplierDto;
-import com.springboot.pos.payload.SupplierResponse;
 import com.springboot.pos.service.SupplierService;
 import com.springboot.pos.utils.AppConstants;
 import jakarta.validation.Valid;
@@ -27,7 +27,7 @@ public class SupplierController {
     }
 
     @GetMapping
-    public SupplierResponse getAllSuppliers(
+    public PagedResponse<SupplierDto> getAllSuppliers(
             @RequestParam(value = "pageNo", defaultValue = AppConstants.DEFAULT_PAGE_NUMBER, required = false) int pageNo,
             @RequestParam(value = "pageSize", defaultValue = AppConstants.DEFAULT_PAGE_SIZE, required = false) int pageSize,
             @RequestParam(value = "sortBy", defaultValue = AppConstants.DEFAULT_SORT_BY, required = false) String sortBy,

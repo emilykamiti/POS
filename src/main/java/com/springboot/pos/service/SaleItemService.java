@@ -1,13 +1,10 @@
 package com.springboot.pos.service;
 
-import com.springboot.pos.model.SaleItem;
-import com.springboot.pos.payload.ProductDto;
-import com.springboot.pos.payload.SaleItemDto;
-import com.springboot.pos.payload.SaleItemResponse;
+import com.springboot.pos.payload.PagedResponse;
+import com.springboot.pos.payload.SaleItemResponseDto;
 
 public interface SaleItemService {
-    SaleItemDto createSaleItem(SaleItemDto saleItemDto);
-
-    SaleItemResponse getAllSaleItems(int pageNo, int pageSize, String sortBy, String sortDir);
-    SaleItemDto getSaleItemById(long id);
+    SaleItemResponseDto createSaleItem(SaleItemResponseDto saleItemDto);
+    PagedResponse<SaleItemResponseDto> getAllSaleItems(int pageNo, int pageSize, String sortBy, String sortDir);
+    SaleItemResponseDto getSaleItemById(long id);
 }

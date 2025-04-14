@@ -24,6 +24,9 @@ public class Product {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    private int lowStockThreshold;
+    private int lowStockMinimumOrder;
+
     @Column(name = "name", nullable = false)
     private String name;
 
@@ -39,6 +42,8 @@ public class Product {
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private Date createdAt;
+
+
 
     @UpdateTimestamp
     @Column(name = "updated_at")

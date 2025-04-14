@@ -1,11 +1,10 @@
 package com.springboot.pos.service.impl;
 
 import com.springboot.pos.exception.ResourceNotFoundException;
-import com.springboot.pos.model.*;
+import com.springboot.pos.model.Sale;
+import com.springboot.pos.model.SaleItem;
 import com.springboot.pos.payload.*;
-import com.springboot.pos.repository.CustomerRepository;
 import com.springboot.pos.repository.SaleRepository;
-import com.springboot.pos.repository.UserRepository;
 import com.springboot.pos.service.SaleService;
 import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
@@ -14,107 +13,90 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 public class SaleServiceImpl implements SaleService {
 
-    private UserRepository userRepository;
-    private CustomerRepository customerRepository;
-    private SaleRepository saleRepository;
-    private ModelMapper mapper;
+    private final SaleRepository saleRepository;
+    private final ModelMapper mapper;
+    private final ProductServiceImpl productService;
 
-    public SaleServiceImpl(SaleRepository saleRepository, UserRepository userRepository, CustomerRepository customerRepository, ModelMapper mapper) {
+    public SaleServiceImpl(
+            SaleRepository saleRepository,
+            ModelMapper mapper,
+            ProductServiceImpl productService
+    ) {
         this.saleRepository = saleRepository;
-        this.userRepository = userRepository;
-        this.customerRepository = customerRepository;
         this.mapper = mapper;
+        this.productService = productService;
     }
 
     @Override
-    public SaleDto createSale(SaleDto saleDto) {
-        Sale sale = mapToEntity(saleDto);
-        Sale newSale = saleRepository.save(sale);
-
-        //convert entity to DTO
-        SaleDto saleResponse = mapToDTO(newSale);
-        return saleResponse;
+    //look at this again
+    //made a small change here regarding product service, am supposed to use impl or just product service.
+    public SaleResponseDto processSale(SaleRequestDto saleRequest) {
+        return productService.processSale(saleRequest);
     }
 
     @Override
-    public SaleResponse getAllSales(int pageNo, int pageSize, String sortBy, String sortDir) {
-        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name()) ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+    public PagedResponse<SaleResponseDto> getAllSales(int pageNo, int pageSize, String sortBy, String sortDir) {
+        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name()) ?
+                Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+
         Pageable pageable = PageRequest.of(pageNo, pageSize, sort);
         Page<Sale> sales = saleRepository.findAll(pageable);
 
-        // get content from page object
-        List<Sale> listOfSales= sales.getContent();
-        List<SaleDto> content = listOfSales.stream().map(sale -> mapToDTO(sale)).collect(Collectors.toList());
-        SaleResponse saleResponse = new SaleResponse();
+        List<SaleResponseDto> content = sales.getContent()
+                .stream()
+                .map(this::mapToResponseDto)
+                .collect(Collectors.toList());
+        PagedResponse<SaleResponseDto> saleResponse = new PagedResponse<>();
         saleResponse.setContent(content);
         saleResponse.setPageNo(sales.getNumber());
         saleResponse.setPageSize(sales.getSize());
         saleResponse.setTotalElements(sales.getTotalElements());
         saleResponse.setTotalPages(sales.getTotalPages());
         saleResponse.setLast(sales.isLast());
-
         return saleResponse;
     }
 
     @Override
-    public SaleDto getSaleById(long id) {
-        Sale sale = saleRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Sale", "id", id));
-        return mapToDTO(sale);
+    public SaleResponseDto getSaleById(long id) {
+        Sale sale = saleRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", id));
+        return mapToResponseDto(sale);
     }
 
-
-    private SaleDto mapToDTO(Sale sale) {
-        SaleDto saleDto = mapper.map(sale, SaleDto.class);
-
-        // Convert User entity to UserDto
-        if (sale.getUser() != null) {
-            UserDto userDto = new UserDto();
-            userDto.setId(sale.getUser().getId());
-            userDto.setName(sale.getUser().getName());
-            userDto.setUsername(sale.getUser().getUsername());
-            userDto.setEmail(sale.getUser().getEmail());
-            saleDto.setUser(userDto);  // Set full user details
-        }
-
-        // Convert Customer entity to CustomerDto
-        if (sale.getCustomer() != null) {
-            CustomerDto customerDto = new CustomerDto();
-            customerDto.setId(sale.getCustomer().getId());
-            customerDto.setName(sale.getCustomer().getName());
-            customerDto.setEmail(sale.getCustomer().getEmail());
-            customerDto.setPhone(sale.getCustomer().getPhone());
-            customerDto.setCreatedAt(sale.getCustomer().getCreatedAt());
-            saleDto.setCustomer(customerDto);  // Set full customer details
-        }
-
-        return saleDto;
+    private SaleResponseDto mapToResponseDto(Sale sale) {
+        SaleResponseDto saleResponseDto = new SaleResponseDto();
+        saleResponseDto.setId(sale.getId());
+        saleResponseDto.setSaleDate(sale.getSaleDate());
+        saleResponseDto.setSubtotalPrice(BigDecimal.valueOf(sale.getSubtotalAmount()));
+        saleResponseDto.setDiscountAmount(BigDecimal.valueOf(sale.getDiscountAmount()));
+        saleResponseDto.setTaxAmount(BigDecimal.valueOf(sale.getTaxAmount()));
+        saleResponseDto.setTotalPrice(BigDecimal.valueOf(sale.getTotalAmount()));
+        saleResponseDto.setUser(sale.getUser() != null ? mapper.map(sale.getUser(), UserDto.class) : null);
+        saleResponseDto.setCustomer(sale.getCustomer() != null ? mapper.map(sale.getCustomer(), CustomerDto.class) : null);
+        saleResponseDto.setPaymentMethod(sale.getPaymentMethod());
+        List<SaleItemResponseDto> saleItems = sale.getSaleItems()
+                .stream()
+                .map(this::mapToSaleItemResponseDto)
+                .collect(Collectors.toList());
+        saleResponseDto.setItems(saleItems);
+        return saleResponseDto;
     }
 
-
-    private Sale mapToEntity(SaleDto saleDto) {
-        Sale sale = mapper.map(saleDto, Sale.class);
-
-        // Fetch the User from the database if userId is provided
-        if (saleDto.getUser() != null && saleDto.getUser().getId() != null) {
-            User user = userRepository.findById(saleDto.getUser().getId())
-                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", saleDto.getUser().getId()));
-            sale.setUser(user);  // Set the full User entity
-        }
-
-        // Fetch the Customer from the database if customerId is provided
-        if (saleDto.getCustomer() != null && saleDto.getCustomer().getId() != null) {
-            Customer customer = customerRepository.findById(saleDto.getCustomer().getId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Customer", "id", saleDto.getCustomer().getId()));
-            sale.setCustomer(customer);  // Set the full Customer entity
-        }
-
-        return sale;
+    private SaleItemResponseDto mapToSaleItemResponseDto(SaleItem saleItem) {
+        SaleItemResponseDto saleItemDto = new SaleItemResponseDto();
+        saleItemDto.setProductId(saleItem.getProduct().getId());
+        saleItemDto.setProductName(saleItem.getProduct().getName());
+        saleItemDto.setQuantity(saleItem.getQuantity());
+        saleItemDto.setUnitPrice(saleItem.getUnitPrice());
+        saleItemDto.setTotalPrice(saleItem.getTotalPrice());
+//        saleItemDto.setSaleId(saleItem.getSale() != null ? saleItem.getSale().getId() : null);
+        return saleItemDto;
     }
-
 }

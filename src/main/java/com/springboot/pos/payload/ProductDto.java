@@ -15,6 +15,8 @@ import jakarta.validation.constraints.Size;
 public class ProductDto {
     private Long id;
 
+    private int lowStockThreshold;
+    private int lowStockMinimumOrder;
     private Date createdAt;
     private Date updatedAt;
 

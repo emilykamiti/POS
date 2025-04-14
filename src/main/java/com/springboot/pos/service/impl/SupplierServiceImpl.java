@@ -2,8 +2,8 @@ package com.springboot.pos.service.impl;
 
 import com.springboot.pos.exception.ResourceNotFoundException;
 import com.springboot.pos.model.Supplier;
+import com.springboot.pos.payload.PagedResponse;
 import com.springboot.pos.payload.SupplierDto;
-import com.springboot.pos.payload.SupplierResponse;
 import com.springboot.pos.repository.SupplierRepository;
 import com.springboot.pos.service.SupplierService;
 import org.modelmapper.ModelMapper;
@@ -37,24 +37,29 @@ public class SupplierServiceImpl implements SupplierService {
     }
 
     @Override
-    public SupplierResponse getAllSuppliers(int pageNo, int pageSize, String sortBy, String sortDir) {
-        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name()) ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+    public PagedResponse<SupplierDto> getAllSuppliers(int pageNo, int pageSize, String sortBy, String sortDir) {
+        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name()) ?
+                Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+
         Pageable pageable = PageRequest.of(pageNo, pageSize, sort);
         Page<Supplier> suppliers = supplierRepository.findAll(pageable);
 
-        // get content from page object
-        List<Supplier> listOfSuppliers= suppliers.getContent();
-        List<SupplierDto> content = listOfSuppliers.stream().map(supplier -> mapToDTO(supplier)).collect(Collectors.toList());
-        SupplierResponse supplierResponse = new SupplierResponse();
-        supplierResponse.setContent(content);
-        supplierResponse.setPageNo(suppliers.getNumber());
-        supplierResponse.setPageSize(suppliers.getSize());
-        supplierResponse.setTotalElements(suppliers.getTotalElements());
-        supplierResponse.setTotalPages(suppliers.getTotalPages());
-        supplierResponse.setLast(suppliers.isLast());
+        List<SupplierDto> content = suppliers.getContent()
+                .stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
 
-        return supplierResponse;
+        PagedResponse<SupplierDto> productresponse = new PagedResponse<>();
+        productresponse.setContent(content);
+        productresponse.setPageNo(suppliers.getNumber());
+        productresponse.setPageSize(suppliers.getSize());
+        productresponse.setTotalElements(suppliers.getTotalElements());
+        productresponse.setTotalPages(suppliers.getTotalPages());
+        productresponse.setLast(suppliers.isLast());
+
+        return productresponse;
     }
+
 
     @Override
     public void deleteSupplierById(long id) {

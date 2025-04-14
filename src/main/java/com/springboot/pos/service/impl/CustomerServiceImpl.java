@@ -3,7 +3,7 @@ package com.springboot.pos.service.impl;
 import com.springboot.pos.exception.ResourceNotFoundException;
 import com.springboot.pos.model.Customer;
 import com.springboot.pos.payload.CustomerDto;
-import com.springboot.pos.payload.CustomerResponse;
+import com.springboot.pos.payload.PagedResponse;
 import com.springboot.pos.repository.CustomerRepository;
 import com.springboot.pos.service.CustomerService;
 import org.modelmapper.ModelMapper;
@@ -36,17 +36,20 @@ public class CustomerServiceImpl implements CustomerService {
         CustomerDto customerResponse = mapToDTO(newCustomer);
         return customerResponse;
     }
-
     @Override
-    public CustomerResponse getAllCustomers(int pageNo, int pageSize, String sortBy, String sortDir) {
-        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name()) ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+    public PagedResponse<CustomerDto> getAllCustomers(int pageNo, int pageSize, String sortBy, String sortDir) {
+        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name())
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(pageNo, pageSize, sort);
         Page<Customer> customers = customerRepository.findAll(pageable);
 
-        // get content from page object
-        List<Customer> listOfCustomers = customers.getContent();
-        List<CustomerDto> content = listOfCustomers.stream().map(customer -> mapToDTO(customer)).collect(Collectors.toList());
-        CustomerResponse customerResponse = new CustomerResponse();
+        List<CustomerDto> content = customers.getContent()
+                .stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+
+        PagedResponse<CustomerDto> customerResponse = new PagedResponse<>();
         customerResponse.setContent(content);
         customerResponse.setPageNo(customers.getNumber());
         customerResponse.setPageSize(customers.getSize());
