@@ -12,16 +12,14 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
-
 @Service
 public class CategoryServiceImpl implements CategoryService {
 
-    private final CategoryRepository categoryRepository;
-    private final ModelMapper mapper;
+    private CategoryRepository categoryRepository;
+    private ModelMapper mapper;
 
     public CategoryServiceImpl(CategoryRepository categoryRepository, ModelMapper mapper) {
         this.categoryRepository = categoryRepository;
@@ -29,48 +27,22 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    @Transactional
     public CategoryDto createCategory(CategoryDto categoryDto) {
-        if (categoryRepository.existsByName(categoryDto.getName())) {
-            throw new IllegalArgumentException("Category with name '" + categoryDto.getName() + "' already exists");
-        }
         Category category = mapToEntity(categoryDto);
         Category newCategory = categoryRepository.save(category);
-        return mapToDTO(newCategory);
-    }
 
-    @Override
-    public CategoryDto getCategoryById(long id) {
-        Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Category", "id", id));
-        return mapToDTO(category);
-    }
-
-    @Override
-    @Transactional
-    public CategoryDto updateCategory(long id, CategoryDto categoryDto) {
-        Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Category", "id", id));
-        if (!category.getName().equals(categoryDto.getName()) &&
-                categoryRepository.existsByName(categoryDto.getName())) {
-            throw new IllegalArgumentException("Category with name '" + categoryDto.getName() + "' already exists");
-        }
-        category.setName(categoryDto.getName());
-        Category updatedCategory = categoryRepository.save(category);
-        return mapToDTO(updatedCategory);
+        //convert entity to DTO
+        CategoryDto categoryResponse = mapToDTO(newCategory);
+        return categoryResponse;
     }
 
     @Override
     public PagedResponse<CategoryDto> getAllCategories(int pageNo, int pageSize, String sortBy, String sortDir) {
-        // Validate pagination parameters
-        if (pageNo < 0) pageNo = 0;
-        if (pageSize <= 0) pageSize = 10;
-
         Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name())
                 ? Sort.by(sortBy).ascending()
                 : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(pageNo, pageSize, sort);
-        Page<Category> categories = categoryRepository.findByDeletedFalse(pageable); // soft delete
+        Page<Category> categories = categoryRepository.findAll(pageable);
 
         List<CategoryDto> content = categories.getContent()
                 .stream()
@@ -89,24 +61,18 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    @Transactional
     public void deleteCategoryById(long id) {
-        Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Category", "id", id));
-
-        // Check if category is referenced by products (assuming Product entity exists)
-        if (categoryRepository.countProductsByCategory(id) > 0) {
-            throw new IllegalStateException("Cannot delete category with associated products");
-        }
-        categoryRepository.save(category);
-
+        Category category = categoryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Category", "id", id));
+        categoryRepository.delete(category);
     }
 
     private CategoryDto mapToDTO(Category category) {
-        return mapper.map(category, CategoryDto.class);
+        CategoryDto categoryDto = mapper.map(category, CategoryDto.class);
+        return categoryDto;
     }
 
     private Category mapToEntity(CategoryDto categoryDto) {
-        return mapper.map(categoryDto, Category.class);
+        Category category = mapper.map(categoryDto, Category.class);
+        return category;
     }
 }
