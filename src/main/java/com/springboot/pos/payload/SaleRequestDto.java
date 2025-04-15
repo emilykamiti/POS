@@ -27,6 +27,10 @@ public class SaleRequestDto {
     // Discount percentage for the entire sale (e.g., 10% = 0.10)
     private Double discountPercentage;
 
-    // Tax percentage (e.g., VAT/GST at 16% = 0.16)
+    // Tax percentage (VAT/GST at 16% = 0.16)
     private Double taxPercentage;
+
+    //loyalty program
+    private Integer useLoyaltyPoints;
+    private String currency;
 }

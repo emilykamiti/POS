@@ -1,7 +1,5 @@
 package com.springboot.pos.model;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -39,11 +37,12 @@ public class Product {
     @Column(name = "stock", nullable = false)
     private int stock;
 
+    @Column(name = "reserved_stock", nullable = false) // Added for stock reservation
+    private int reservedStock;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private Date createdAt;
-
-
 
     @UpdateTimestamp
     @Column(name = "updated_at")

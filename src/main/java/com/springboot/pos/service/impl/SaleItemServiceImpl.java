@@ -1,9 +1,12 @@
 package com.springboot.pos.service.impl;
 
 import com.springboot.pos.exception.ResourceNotFoundException;
+import com.springboot.pos.model.AuditLog;
+import com.springboot.pos.model.Product;
 import com.springboot.pos.model.SaleItem;
 import com.springboot.pos.payload.PagedResponse;
 import com.springboot.pos.payload.SaleItemResponseDto;
+import com.springboot.pos.repository.AuditLogRepository;
 import com.springboot.pos.repository.ProductRepository;
 import com.springboot.pos.repository.SaleItemRepository;
 import com.springboot.pos.service.SaleItemService;
@@ -12,29 +15,56 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 public class SaleItemServiceImpl implements SaleItemService {
 
-
     private final SaleItemRepository saleItemRepository;
+    private final ProductRepository productRepository;
     private final ModelMapper mapper;
+    private final AuditLogRepository auditLogRepository;
 
-    public SaleItemServiceImpl(SaleItemRepository saleItemRepository,
-                               ModelMapper mapper) {
+    public SaleItemServiceImpl(
+            SaleItemRepository saleItemRepository,
+            ProductRepository productRepository,
+            AuditLogRepository auditLogRepository,
+            ModelMapper mapper
+    ) {
         this.saleItemRepository = saleItemRepository;
+        this.productRepository = productRepository;
         this.mapper = mapper;
+        this.auditLogRepository = auditLogRepository;
     }
 
     @Override
     public SaleItemResponseDto createSaleItem(SaleItemResponseDto saleItemDto) {
         SaleItem saleItem = mapToEntity(saleItemDto);
         SaleItem newSaleItem = saleItemRepository.save(saleItem);
+        logSaleItemCreation(newSaleItem);
         return mapToDTO(newSaleItem);
+    }
+
+
+    public SaleItem prepareSaleItem(SaleItemResponseDto saleItemDto) {
+        return mapToEntity(saleItemDto);
+    }
+
+
+    public void logSaleItemCreation(SaleItem saleItem) {
+        AuditLog log = new AuditLog();
+        log.setEntityType("SaleItem");
+        log.setEntityId(saleItem.getId());
+        log.setAction("CREATE");
+        log.setUser(SecurityContextHolder.getContext().getAuthentication().getName());
+        log.setTimestamp(LocalDateTime.now());
+        log.setDetails("Created sale item for product ID: " + saleItem.getProduct().getId());
+        auditLogRepository.save(log);
     }
 
     @Override
@@ -58,7 +88,6 @@ public class SaleItemServiceImpl implements SaleItemService {
         saleItemResponse.setTotalPages(saleItems.getTotalPages());
         saleItemResponse.setLast(saleItems.isLast());
 
-
         return saleItemResponse;
     }
 
@@ -79,11 +108,14 @@ public class SaleItemServiceImpl implements SaleItemService {
         return saleItemDto;
     }
 
-    //TRY INPUTTING A DIFFERENT METHOD HERE, ONE THAT IMPLEMENTS MAPTODTO!!1
-
     private SaleItem mapToEntity(SaleItemResponseDto saleItemDto) {
-        SaleItem saleItem = mapper.map(saleItemDto, SaleItem.class);
+        SaleItem saleItem = new SaleItem();
+        Product product = productRepository.findById(saleItemDto.getProductId())
+                .orElseThrow(() -> new ResourceNotFoundException("Product", "id", saleItemDto.getProductId()));
+        saleItem.setProduct(product);
+        saleItem.setQuantity(saleItemDto.getQuantity());
+        saleItem.setUnitPrice(saleItemDto.getUnitPrice());
+        saleItem.setTotalPrice(saleItemDto.getTotalPrice());
         return saleItem;
     }
-
 }

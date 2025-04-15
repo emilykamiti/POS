@@ -1,44 +1,184 @@
 package com.springboot.pos.service.impl;
 
 import com.springboot.pos.exception.ResourceNotFoundException;
-import com.springboot.pos.model.Sale;
-import com.springboot.pos.model.SaleItem;
+import com.springboot.pos.exception.SaleProcessingException;
+import com.springboot.pos.model.*;
 import com.springboot.pos.payload.*;
-import com.springboot.pos.repository.SaleRepository;
+import com.springboot.pos.repository.*;
+import com.springboot.pos.service.SaleItemService;
 import com.springboot.pos.service.SaleService;
+import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 public class SaleServiceImpl implements SaleService {
 
     private final SaleRepository saleRepository;
-    private final ModelMapper mapper;
+    private final UserRepository userRepository;
+    private final CustomerRepository customerRepository;
     private final ProductServiceImpl productService;
+    private final SaleItemService saleItemService;
+    private final ModelMapper mapper;
+    private final AuditLogRepository auditLogRepository;
 
     public SaleServiceImpl(
             SaleRepository saleRepository,
+            UserRepository userRepository,
+            CustomerRepository customerRepository,
+            ProductServiceImpl productService,
+            SaleItemService saleItemService,
             ModelMapper mapper,
-            ProductServiceImpl productService
+            AuditLogRepository auditLogRepository
     ) {
         this.saleRepository = saleRepository;
-        this.mapper = mapper;
+        this.userRepository = userRepository;
+        this.customerRepository = customerRepository;
         this.productService = productService;
+        this.saleItemService = saleItemService;
+        this.mapper = mapper;
+        this.auditLogRepository = auditLogRepository;
     }
 
+
+
     @Override
-    //look at this again
-    //made a small change here regarding product service, am supposed to use impl or just product service.
+    @Transactional(rollbackOn = Exception.class)
     public SaleResponseDto processSale(SaleRequestDto saleRequest) {
-        return productService.processSale(saleRequest);
+        try {
+            // Reserve stock to prevent overselling
+            productService.reserveStockForSale(saleRequest);
+
+            // Create Sale entity
+            Sale sale = new Sale();
+            sale.setSaleDate(LocalDateTime.now());
+
+            if (saleRequest.getUserId() != null) {
+                User user = userRepository.findById(saleRequest.getUserId())
+                        .orElseThrow(() -> new ResourceNotFoundException("User", "id", saleRequest.getUserId()));
+                sale.setUser(user);
+            }
+            Customer customer = null;
+            if (saleRequest.getCustomerId() != null) {
+                customer = customerRepository.findById(saleRequest.getCustomerId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Customer", "id", saleRequest.getCustomerId()));
+                sale.setCustomer(customer);
+            }
+            sale.setPaymentMethod(saleRequest.getPaymentMethod());
+
+            // Initialize required fields
+            String currency = saleRequest.getCurrency() != null ? saleRequest.getCurrency() : "KES";
+            BigDecimal subtotalAmount = BigDecimal.ZERO;
+            List<Product> productsToUpdate = new ArrayList<>();
+            List<SaleItem> saleItems = new ArrayList<>();
+
+            for (SaleItemRequestDto itemDto : saleRequest.getItems()) {
+                ProductDto productDto = productService.getProductById(itemDto.getProductId());
+                Product product = productService.mapToEntity(productDto);
+
+                BigDecimal unitPrice = convertCurrency(product.getPrice(), "KES", currency);
+                BigDecimal itemTotal = calculateItemTotal(itemDto.getQuantity(), unitPrice);
+                subtotalAmount = subtotalAmount.add(itemTotal);
+
+                productService.updateProductStock(product, itemDto.getQuantity());
+                productsToUpdate.add(product);
+
+                SaleItemResponseDto saleItemDto = new SaleItemResponseDto();
+                saleItemDto.setProductId(product.getId());
+                saleItemDto.setProductName(product.getName());
+                saleItemDto.setQuantity(itemDto.getQuantity());
+                saleItemDto.setUnitPrice(unitPrice);
+                saleItemDto.setTotalPrice(itemTotal);
+
+                // Prepare SaleItem entity
+                SaleItem saleItem = saleItemService.prepareSaleItem(saleItemDto);
+                saleItem.setSale(sale); // Set bidirectional relationship
+                saleItems.add(saleItem);
+            }
+
+            // Set sale items on the Sale entity to maintain bidirectional relationship
+            sale.setSaleItems(saleItems);
+            // Ensure each SaleItem is aware of its Sale
+            for (SaleItem saleItem : saleItems) {
+                saleItem.setSale(sale);
+            }
+
+            // Calculate discounts and taxes
+            BigDecimal loyaltyDiscount = BigDecimal.ZERO;
+            if (customer != null && saleRequest.getUseLoyaltyPoints() != null && saleRequest.getUseLoyaltyPoints() > 0) {
+                int pointsToUse = Math.min(saleRequest.getUseLoyaltyPoints(), customer.getLoyaltyPoints());
+                loyaltyDiscount = convertCurrency(BigDecimal.valueOf(pointsToUse), "KES", currency);
+                customer.setLoyaltyPoints(customer.getLoyaltyPoints() - pointsToUse);
+            }
+
+            BigDecimal discountAmount = BigDecimal.ZERO;
+            if (saleRequest.getDiscountPercentage() != null && saleRequest.getDiscountPercentage() > 0) {
+                BigDecimal discountPercentage = BigDecimal.valueOf(saleRequest.getDiscountPercentage());
+                discountAmount = subtotalAmount.multiply(discountPercentage);
+                subtotalAmount = subtotalAmount.subtract(discountAmount);
+            }
+
+            subtotalAmount = subtotalAmount.subtract(loyaltyDiscount);
+
+            BigDecimal taxAmount = BigDecimal.ZERO;
+            if (saleRequest.getTaxPercentage() != null && saleRequest.getTaxPercentage() > 0) {
+                BigDecimal taxPercentage = BigDecimal.valueOf(saleRequest.getTaxPercentage());
+                taxAmount = subtotalAmount.multiply(taxPercentage);
+                subtotalAmount = subtotalAmount.add(taxAmount);
+            }
+
+            // Set all required fields before saving
+            sale.setSubtotalAmount(subtotalAmount.doubleValue());
+            sale.setDiscountAmount(discountAmount.doubleValue());
+            sale.setTaxAmount(taxAmount.doubleValue());
+            sale.setTotalAmount(subtotalAmount.doubleValue());
+
+            if (customer != null) {
+                BigDecimal subtotalInKES = convertCurrency(subtotalAmount, currency, "KES");
+                int pointsEarned = subtotalInKES.divide(BigDecimal.valueOf(100), RoundingMode.FLOOR).intValue();
+                customer.setLoyaltyPoints(customer.getLoyaltyPoints() + pointsEarned);
+                customerRepository.save(customer);
+            }
+
+            // Save the Sale, which should cascade to SaleItems
+            sale = saleRepository.save(sale);
+
+            // Log audit entries for SaleItems
+            for (SaleItem saleItem : sale.getSaleItems()) {
+                saleItemService.logSaleItemCreation(saleItem);
+            }
+
+            AuditLog log = new AuditLog();
+            log.setEntityType("Sale");
+            log.setEntityId(sale.getId());
+            log.setAction("CREATE");
+            log.setUser(SecurityContextHolder.getContext().getAuthentication().getName());
+            log.setTimestamp(LocalDateTime.now());
+            log.setDetails("Created sale with total amount: " + sale.getTotalAmount() + " " + currency);
+            auditLogRepository.save(log);
+
+            return mapToResponseDto(sale);
+        } catch (IllegalArgumentException e) {
+            productService.releaseReservedStock(saleRequest);
+            throw e;
+        } catch (Exception e) {
+            productService.releaseReservedStock(saleRequest);
+            throw new SaleProcessingException("Failed to process sale: " + e.getMessage(), e);
+        }
     }
 
     @Override
@@ -70,6 +210,29 @@ public class SaleServiceImpl implements SaleService {
         return mapToResponseDto(sale);
     }
 
+    public List<ProductSalesReportDto> getProductSalesReport(LocalDateTime startDate, LocalDateTime endDate) {
+        List<Sale> sales = saleRepository.findBySaleDateBetween(startDate, endDate);
+        Map<Product, Integer> productSales = new HashMap<>();
+
+        for (Sale sale : sales) {
+            for (SaleItem saleItem : sale.getSaleItems()) {
+                Product product = saleItem.getProduct();
+                productSales.merge(product, saleItem.getQuantity(), Integer::sum);
+            }
+        }
+
+        return productSales.entrySet().stream()
+                .map(entry -> {
+                    ProductSalesReportDto report = new ProductSalesReportDto();
+                    report.setProduct(mapper.map(entry.getKey(), ProductDto.class));
+                    report.setTotalUnitsSold(entry.getValue());
+                    report.setTotalRevenue(entry.getKey().getPrice().multiply(BigDecimal.valueOf(entry.getValue())));
+                    return report;
+                })
+                .sorted((a, b) -> b.getTotalUnitsSold().compareTo(a.getTotalUnitsSold()))
+                .collect(Collectors.toList());
+    }
+
     private SaleResponseDto mapToResponseDto(Sale sale) {
         SaleResponseDto saleResponseDto = new SaleResponseDto();
         saleResponseDto.setId(sale.getId());
@@ -96,7 +259,41 @@ public class SaleServiceImpl implements SaleService {
         saleItemDto.setQuantity(saleItem.getQuantity());
         saleItemDto.setUnitPrice(saleItem.getUnitPrice());
         saleItemDto.setTotalPrice(saleItem.getTotalPrice());
-//        saleItemDto.setSaleId(saleItem.getSale() != null ? saleItem.getSale().getId() : null);
         return saleItemDto;
+    }
+
+    private SaleItem mapToSaleItemEntity(SaleItemResponseDto saleItemDto, Sale sale) {
+        SaleItem saleItem = new SaleItem();
+        ProductDto productDto = productService.getProductById(saleItemDto.getProductId());
+        saleItem.setProduct(productService.mapToEntity(productDto));
+        saleItem.setQuantity(saleItemDto.getQuantity());
+        saleItem.setUnitPrice(saleItemDto.getUnitPrice());
+        saleItem.setTotalPrice(saleItemDto.getTotalPrice());
+        saleItem.setSale(sale);
+        return saleItem;
+    }
+
+    private BigDecimal calculateItemTotal(int quantity, BigDecimal unitPrice) {
+        return unitPrice.multiply(BigDecimal.valueOf(quantity));
+    }
+
+    private BigDecimal convertCurrency(BigDecimal amount, String fromCurrency, String toCurrency) {
+        if (fromCurrency.equals(toCurrency)) return amount;
+        BigDecimal exchangeRate = fetchExchangeRate(fromCurrency, toCurrency);
+        return amount.multiply(exchangeRate).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal fetchExchangeRate(String fromCurrency, String toCurrency) {
+        Map<String, BigDecimal> ratesFromKES = new HashMap<>();
+        ratesFromKES.put("KES", BigDecimal.ONE);
+        ratesFromKES.put("USD", BigDecimal.valueOf(0.0078));
+
+        if (!ratesFromKES.containsKey(fromCurrency) || !ratesFromKES.containsKey(toCurrency)) {
+            throw new IllegalArgumentException("Unsupported currency pair: " + fromCurrency + " to " + toCurrency);
+        }
+
+        BigDecimal rateFrom = ratesFromKES.get(fromCurrency);
+        BigDecimal rateTo = ratesFromKES.get(toCurrency);
+        return rateTo.divide(rateFrom, 6, RoundingMode.HALF_UP);
     }
 }

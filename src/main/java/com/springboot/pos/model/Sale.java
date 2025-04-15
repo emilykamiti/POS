@@ -8,29 +8,43 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-@Entity
 @Getter
 @Setter
+@Entity
+@Table(name = "sales")
 public class Sale {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "sale_date", nullable = false)
     private LocalDateTime saleDate;
 
-    private double subtotalAmount; // Before discounts and taxes
-    private double discountAmount; // Amount discounted
-    private double taxAmount; // Tax amount added
-    private double totalAmount; // Final amount after discounts and taxes
-
     @ManyToOne
+    @JoinColumn(name = "user_id")
     private User user;
 
     @ManyToOne
+    @JoinColumn(name = "customer_id")
     private Customer customer;
 
+    @Column(name = "payment_method")
     private String paymentMethod;
+
+    @Column(name = "subtotal_amount", nullable = false)
+    private Double subtotalAmount;
+
+    @Column(name = "discount_amount", nullable = false)
+    private Double discountAmount;
+
+    @Column(name = "tax_amount", nullable = false)
+    private Double taxAmount;
+
+    @Column(name = "total_amount", nullable = false)
+    private Double totalAmount;
 
     @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SaleItem> saleItems = new ArrayList<>();
+
 }

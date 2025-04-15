@@ -1,12 +1,11 @@
 package com.springboot.pos.service.impl;
 
 
-import com.springboot.pos.service.EmailNotificationService;
 import com.springboot.pos.service.NotificationService;
 import org.springframework.stereotype.Service;
 
 @Service
-public class EmailNotificationServiceImpl implements EmailNotificationService {
+public class EmailNotificationServiceImpl implements NotificationService {
 
     @Override
     public void notifyAdmin(String message) {
