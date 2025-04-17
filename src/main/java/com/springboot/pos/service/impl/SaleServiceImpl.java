@@ -7,6 +7,8 @@ import com.springboot.pos.payload.*;
 import com.springboot.pos.repository.*;
 import com.springboot.pos.service.SaleItemService;
 import com.springboot.pos.service.SaleService;
+import com.springboot.pos.service.StripePaymentService;
+import com.stripe.exception.StripeException;
 import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
@@ -35,6 +37,7 @@ public class SaleServiceImpl implements SaleService {
     private final SaleItemService saleItemService;
     private final ModelMapper mapper;
     private final AuditLogRepository auditLogRepository;
+    private final StripePaymentService stripePaymentService;
 
     public SaleServiceImpl(
             SaleRepository saleRepository,
@@ -43,7 +46,8 @@ public class SaleServiceImpl implements SaleService {
             ProductServiceImpl productService,
             SaleItemService saleItemService,
             ModelMapper mapper,
-            AuditLogRepository auditLogRepository
+            AuditLogRepository auditLogRepository,
+            StripePaymentService stripePaymentService
     ) {
         this.saleRepository = saleRepository;
         this.userRepository = userRepository;
@@ -52,6 +56,7 @@ public class SaleServiceImpl implements SaleService {
         this.saleItemService = saleItemService;
         this.mapper = mapper;
         this.auditLogRepository = auditLogRepository;
+        this.stripePaymentService = stripePaymentService;
     }
 
     @Override
@@ -140,12 +145,27 @@ public class SaleServiceImpl implements SaleService {
                 subtotalAmount = subtotalAmount.add(taxAmount);
             }
 
-            // Set all required fields before saving
+            // Set all required fields before payment processing
             sale.setSubtotalAmount(subtotalAmount.doubleValue());
             sale.setDiscountAmount(discountAmount.doubleValue());
             sale.setTaxAmount(taxAmount.doubleValue());
             sale.setTotalAmount(subtotalAmount.doubleValue());
 
+            // Process payment via Stripe before saving the sale
+            try {
+                String paymentStatus = stripePaymentService.processPayment(
+                        sale.getTotalAmount(),
+                        currency,
+                        "POS Sale Transaction - Sale ID: " + sale.getId()
+                );
+                if (!"succeeded".equals(paymentStatus)) {
+                    throw new SaleProcessingException("Payment failed with status: " + paymentStatus);
+                }
+            } catch (StripeException e) {
+                throw new SaleProcessingException("Payment processing failed: " + e.getMessage(), e);
+            }
+
+            // Update customer loyalty points after successful payment
             if (customer != null) {
                 BigDecimal subtotalInKES = convertCurrency(subtotalAmount, currency, "KES");
                 int pointsEarned = subtotalInKES.divide(BigDecimal.valueOf(100), RoundingMode.FLOOR).intValue();
@@ -153,11 +173,13 @@ public class SaleServiceImpl implements SaleService {
                 customerRepository.save(customer);
             }
 
+            // Save the sale and related data after payment is successful
             sale = saleRepository.save(sale);
             for (SaleItem saleItem : sale.getSaleItems()) {
                 saleItemService.logSaleItemCreation(saleItem);
             }
 
+            // Log the sale creation
             AuditLog log = new AuditLog();
             log.setEntityType("Sale");
             log.setEntityId(sale.getId());
@@ -257,6 +279,7 @@ public class SaleServiceImpl implements SaleService {
         saleItemDto.setTotalPrice(saleItem.getTotalPrice());
         return saleItemDto;
     }
+
     private Sale mapToEntity(SaleResponseDto saleResponseDto) {
         Sale sale = mapper.map(saleResponseDto, Sale.class);
         return sale;
