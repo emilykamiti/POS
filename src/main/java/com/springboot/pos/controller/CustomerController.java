@@ -26,7 +26,7 @@ public class CustomerController {
         return new ResponseEntity<>(customerService.createCustomers(customerDto), HttpStatus.CREATED);
     }
 
-    //get all customers rest api
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     public PagedResponse<CustomerDto> getAllCustomers(
             @RequestParam(value = "pageNo", defaultValue = AppConstants.DEFAULT_PAGE_NUMBER, required = false) int pageNo,
@@ -38,19 +38,20 @@ public class CustomerController {
 
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/{id}")
     public ResponseEntity<CustomerDto> getCustomerById(@PathVariable(name = "id") long id) {
         return ResponseEntity.ok(customerService.getCustomerById(id));
     }
 
-    //update post by id rest api
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<CustomerDto> updateCustomer(@Valid @RequestBody CustomerDto customerDto, @PathVariable(name = "id") long id) {
         CustomerDto customerResponse = customerService.updateCustomer(customerDto, id);
         return new ResponseEntity<>(customerResponse, HttpStatus.OK);
     }
 
-
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteCustomer(@PathVariable(name = "id") long id) {
         customerService.deleteCustomerById(id);

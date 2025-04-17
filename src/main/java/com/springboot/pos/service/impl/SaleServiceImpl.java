@@ -54,8 +54,6 @@ public class SaleServiceImpl implements SaleService {
         this.auditLogRepository = auditLogRepository;
     }
 
-
-
     @Override
     @Transactional(rollbackOn = Exception.class)
     public SaleResponseDto processSale(SaleRequestDto saleRequest) {
@@ -110,8 +108,9 @@ public class SaleServiceImpl implements SaleService {
                 saleItems.add(saleItem);
             }
 
-            // Set sale items on the Sale entity to maintain bidirectional relationship
+            // Set sale items on the Sale entity
             sale.setSaleItems(saleItems);
+
             // Ensure each SaleItem is aware of its Sale
             for (SaleItem saleItem : saleItems) {
                 saleItem.setSale(sale);
@@ -154,10 +153,7 @@ public class SaleServiceImpl implements SaleService {
                 customerRepository.save(customer);
             }
 
-            // Save the Sale, which should cascade to SaleItems
             sale = saleRepository.save(sale);
-
-            // Log audit entries for SaleItems
             for (SaleItem saleItem : sale.getSaleItems()) {
                 saleItemService.logSaleItemCreation(saleItem);
             }
@@ -171,7 +167,7 @@ public class SaleServiceImpl implements SaleService {
             log.setDetails("Created sale with total amount: " + sale.getTotalAmount() + " " + currency);
             auditLogRepository.save(log);
 
-            return mapToResponseDto(sale);
+            return mapToSaleResponseDto(sale);
         } catch (IllegalArgumentException e) {
             productService.releaseReservedStock(saleRequest);
             throw e;
@@ -191,7 +187,7 @@ public class SaleServiceImpl implements SaleService {
 
         List<SaleResponseDto> content = sales.getContent()
                 .stream()
-                .map(this::mapToResponseDto)
+                .map(this::mapToSaleResponseDto)
                 .collect(Collectors.toList());
         PagedResponse<SaleResponseDto> saleResponse = new PagedResponse<>();
         saleResponse.setContent(content);
@@ -207,7 +203,7 @@ public class SaleServiceImpl implements SaleService {
     public SaleResponseDto getSaleById(long id) {
         Sale sale = saleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", id));
-        return mapToResponseDto(sale);
+        return mapToSaleResponseDto(sale);
     }
 
     public List<ProductSalesReportDto> getProductSalesReport(LocalDateTime startDate, LocalDateTime endDate) {
@@ -233,7 +229,7 @@ public class SaleServiceImpl implements SaleService {
                 .collect(Collectors.toList());
     }
 
-    private SaleResponseDto mapToResponseDto(Sale sale) {
+    private SaleResponseDto mapToSaleResponseDto(Sale sale) {
         SaleResponseDto saleResponseDto = new SaleResponseDto();
         saleResponseDto.setId(sale.getId());
         saleResponseDto.setSaleDate(sale.getSaleDate());
@@ -261,16 +257,9 @@ public class SaleServiceImpl implements SaleService {
         saleItemDto.setTotalPrice(saleItem.getTotalPrice());
         return saleItemDto;
     }
-
-    private SaleItem mapToSaleItemEntity(SaleItemResponseDto saleItemDto, Sale sale) {
-        SaleItem saleItem = new SaleItem();
-        ProductDto productDto = productService.getProductById(saleItemDto.getProductId());
-        saleItem.setProduct(productService.mapToEntity(productDto));
-        saleItem.setQuantity(saleItemDto.getQuantity());
-        saleItem.setUnitPrice(saleItemDto.getUnitPrice());
-        saleItem.setTotalPrice(saleItemDto.getTotalPrice());
-        saleItem.setSale(sale);
-        return saleItem;
+    private Sale mapToEntity(SaleResponseDto saleResponseDto) {
+        Sale sale = mapper.map(saleResponseDto, Sale.class);
+        return sale;
     }
 
     private BigDecimal calculateItemTotal(int quantity, BigDecimal unitPrice) {
@@ -291,7 +280,6 @@ public class SaleServiceImpl implements SaleService {
         if (!ratesFromKES.containsKey(fromCurrency) || !ratesFromKES.containsKey(toCurrency)) {
             throw new IllegalArgumentException("Unsupported currency pair: " + fromCurrency + " to " + toCurrency);
         }
-
         BigDecimal rateFrom = ratesFromKES.get(fromCurrency);
         BigDecimal rateTo = ratesFromKES.get(toCurrency);
         return rateTo.divide(rateFrom, 6, RoundingMode.HALF_UP);
