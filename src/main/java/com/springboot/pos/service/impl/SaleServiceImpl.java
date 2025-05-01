@@ -7,8 +7,7 @@ import com.springboot.pos.payload.*;
 import com.springboot.pos.repository.*;
 import com.springboot.pos.service.SaleItemService;
 import com.springboot.pos.service.SaleService;
-import com.springboot.pos.service.StripePaymentService;
-import com.stripe.exception.StripeException;
+import com.springboot.pos.service.MpesaPaymentService;
 import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
@@ -37,7 +36,7 @@ public class SaleServiceImpl implements SaleService {
     private final SaleItemService saleItemService;
     private final ModelMapper mapper;
     private final AuditLogRepository auditLogRepository;
-    private final StripePaymentService stripePaymentService;
+    private final MpesaPaymentService mpesaPaymentService;
 
     public SaleServiceImpl(
             SaleRepository saleRepository,
@@ -47,7 +46,7 @@ public class SaleServiceImpl implements SaleService {
             SaleItemService saleItemService,
             ModelMapper mapper,
             AuditLogRepository auditLogRepository,
-            StripePaymentService stripePaymentService
+            MpesaPaymentService mpesaPaymentService
     ) {
         this.saleRepository = saleRepository;
         this.userRepository = userRepository;
@@ -56,7 +55,7 @@ public class SaleServiceImpl implements SaleService {
         this.saleItemService = saleItemService;
         this.mapper = mapper;
         this.auditLogRepository = auditLogRepository;
-        this.stripePaymentService = stripePaymentService;
+        this.mpesaPaymentService = mpesaPaymentService;
     }
 
     @Override
@@ -151,19 +150,46 @@ public class SaleServiceImpl implements SaleService {
             sale.setTaxAmount(taxAmount.doubleValue());
             sale.setTotalAmount(subtotalAmount.doubleValue());
 
-            // Process payment via Stripe before saving the sale
+            // Process payment via M-Pesa STK Push before saving the sale
+            String phoneNumber = saleRequest.getPhoneNumber();
+            if (phoneNumber == null && customer != null) {
+                phoneNumber = customer.getPhoneNumber();
+            }
+            if (phoneNumber == null) {
+                throw new SaleProcessingException("Customer phone number is required for M-Pesa payment");
+            }
+            if (!phoneNumber.startsWith("254")) {
+                phoneNumber = "254" + phoneNumber.substring(1);
+            }
+
+            // Initiate STK Push payment
+            Transaction transaction;
             try {
-                String paymentStatus = stripePaymentService.processPayment(
+                transaction = mpesaPaymentService.initiatePayment(
                         sale.getTotalAmount(),
+                        phoneNumber,
                         currency,
                         "POS Sale Transaction - Sale ID: " + sale.getId()
                 );
-                if (!"succeeded".equals(paymentStatus)) {
-                    throw new SaleProcessingException("Payment failed with status: " + paymentStatus);
-                }
-            } catch (StripeException e) {
-                throw new SaleProcessingException("Payment processing failed: " + e.getMessage(), e);
+            } catch (Exception e) {
+                throw new SaleProcessingException("Failed to initiate M-Pesa payment: " + e.getMessage(), e);
             }
+
+            // Wait for payment confirmation (with a timeout of 60 seconds)
+            boolean paymentSuccessful;
+            try {
+                paymentSuccessful = mpesaPaymentService.confirmPayment(transaction, 60);
+            } catch (InterruptedException e) {
+                throw new SaleProcessingException("Payment confirmation interrupted: " + e.getMessage(), e);
+            }
+
+            if (!paymentSuccessful) {
+                throw new SaleProcessingException("M-Pesa payment failed: " + transaction.getResultDesc());
+            }
+
+            // Link the transaction to the sale
+            transaction.setSale(sale);
+            sale.setTransaction(transaction);
 
             // Update customer loyalty points after successful payment
             if (customer != null) {
@@ -186,7 +212,7 @@ public class SaleServiceImpl implements SaleService {
             log.setAction("CREATE");
             log.setUser(SecurityContextHolder.getContext().getAuthentication().getName());
             log.setTimestamp(LocalDateTime.now());
-            log.setDetails("Created sale with total amount: " + sale.getTotalAmount() + " " + currency);
+            log.setDetails("Created sale with total amount: " + sale.getTotalAmount() + " " + currency + ", M-Pesa Transaction ID: " + transaction.getTransactionId());
             auditLogRepository.save(log);
 
             return mapToSaleResponseDto(sale);

@@ -24,7 +24,7 @@ public class CustomerDto {
     private String email;
 
     @Size(min = 10, message = "Please enter a valid telephone number")
-    private String phone;
+    private String phoneNumber;
 
 
     private int loyaltyPoints;

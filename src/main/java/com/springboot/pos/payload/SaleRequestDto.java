@@ -23,7 +23,7 @@ public class SaleRequestDto {
 
     private Long userId;
     private Long customerId;
-
+    private String phoneNumber;
     // Discount percentage for the entire sale (e.g., 10% = 0.10)
     private Double discountPercentage;
 

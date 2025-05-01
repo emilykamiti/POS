@@ -47,4 +47,13 @@ public class Sale {
     @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SaleItem> saleItems = new ArrayList<>();
 
+    @OneToOne(mappedBy = "sale", cascade = CascadeType.ALL)
+    private Transaction transaction;
+
+    public void setTransaction(Transaction transaction) {
+        this.transaction = transaction;
+        if (transaction != null && transaction.getSale() != this) {
+            transaction.setSale(this);
+        }
+    }
 }

@@ -72,7 +72,7 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setName(customerDto.getName());
         customer.setEmail(customerDto.getEmail());
         customer.setLoyaltyPoints(customerDto.getLoyaltyPoints());
-        customer.setPhone(customerDto.getPhone());
+        customer.setPhoneNumber(customerDto.getPhoneNumber());
         customer.setCreatedAt(customerDto.getCreatedAt());
 
         Customer updatedCustomer = customerRepository.save(customer);
