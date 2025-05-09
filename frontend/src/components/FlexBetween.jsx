@@ -1,16 +1,13 @@
 import React from "react";
-import { Box } from "@mui/material";
 
-const FlexBetween = ({ children, ...props }) => {
+const FlexBetween = ({ children, className, ...props }) => {
   return (
-    <Box
-      display="flex"
-      justifyContent="space-between"
-      alignItems="center"
+    <div
+      className={`flex justify-between items-center ${className || ""}`}
       {...props}
     >
       {children}
-    </Box>
+    </div>
   );
 };
 

@@ -1,21 +1,12 @@
-import { Typography, Box, useTheme } from "@mui/material";
-
-const Header = ({ title, subtitle }) => {
-  const theme = useTheme();
-  return (
-    <Box>
-      <Typography
-        variant="h2"
-        color={theme.palette.secondary[100]}
-        fontWeight="bold"
-        sx={{ mb: "5px" }}
-      >
-        {title}
-      </Typography>
-      <Typography varian="h5" color={theme.palette.secondary[300]}>
-        {subtitle}
-      </Typography>
-    </Box>
-  );
-};
-export default Header;
+// import React from "react";
+//
+// const PageHeader = ({ title, subtitle }) => {
+//   return (
+//     <div className="mb-4">
+//       <h2 className="text-3xl font-bold text-gray-800">{title}</h2>
+//       <p className="text-lg text-gray-500">{subtitle}</p>
+//     </div>
+//   );
+// };
+//
+// export default PageHeader;

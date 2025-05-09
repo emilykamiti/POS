@@ -85,6 +85,8 @@ public class SaleServiceImpl implements SaleService {
                 transaction = processMpesaPayment(saleRequest, sale);
             }
 
+            //? we could add usage of other payment methods here.
+
             // 4. Finalize sale
             return finalizeSaleProcessing(saleRequest, sale, transaction);
 
