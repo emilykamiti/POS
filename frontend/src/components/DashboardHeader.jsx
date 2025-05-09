@@ -53,8 +53,9 @@ const DashboardHeader = ({ pageTitle }) => {
   };
 
   return (
-    <div className="min-h-screen flex justify-center">
-      <header className="fixed top-5 left-1/2 transform -translate-x-1/2 z-10 flex items-center justify-between px-6 py-3 w-[95%] max-w-6xl bg-white shadow-lg text-gray-800 rounded-full">
+    <div className="flex justify-center">
+    <header className="z-10 mt-5 flex items-center justify-between px-6 py-3 w-[95%] max-w-6xl bg-white-700 shadow-lg text-gray-800 rounded-full">
+
         {/* Left Side: Logo */}
         <h1 className="text-xl font-bold">POSS</h1>
 

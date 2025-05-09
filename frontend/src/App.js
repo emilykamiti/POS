@@ -29,20 +29,8 @@ function AppContent() {
           <Routes>
             {/* Redirect root to /dashboard */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
-            {/* Dashboard routes */}
-            <Route
-              path="/dashboard/*"
-              element={
-                <>
-                  <Routes>
-                    <Route path="/" element={<Dashboard />} />
-                    <Route path="/search" element={<SearchResults />} />
-                  </Routes>
-                </>
-              }
-            />
-
+            {/* Dashboard route */}
+            <Route path="/dashboard" element={<Dashboard />} />
             {/* Login route */}
             <Route path="/login" element={<Login />} />
             {/* Signup route */}
