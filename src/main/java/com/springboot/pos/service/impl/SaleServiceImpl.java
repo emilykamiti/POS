@@ -263,23 +263,7 @@ public class SaleServiceImpl implements SaleService {
         return mapToSaleResponseDto(sale);
     }
 
-//    @Override
-//    public List<ProductSalesReportDto> getProductSalesReport(LocalDateTime startDate, LocalDateTime endDate) {
-//        List<Sale> sales = saleRepository.findBySaleDateBetween(startDate, endDate);
-//        Map<Product, Integer> productSales = new HashMap<>();
-//
-//        sales.forEach(sale -> sale.getSaleItems().forEach(item ->
-//                productSales.merge(item.getProduct(), item.getQuantity(), Integer::sum)));
-//
-//        return productSales.entrySet().stream()
-//                .map(entry -> new ProductSalesReportDto(
-//                        mapper.map(entry.getKey(), ProductDto.class),
-//                        entry.getValue(),
-//                        entry.getKey().getPrice().multiply(BigDecimal.valueOf(entry.getValue()))
-//                ))
-//                .sorted(Comparator.comparing(ProductSalesReportDto::getTotalUnitsSold).reversed())
-//                .collect(Collectors.toList());
-//    }
+// add report in this class -check commit -9/5/25
 
     private BigDecimal calculateDiscount(SaleRequestDto saleRequest, BigDecimal subtotal) {
         if (saleRequest.getDiscountPercentage() == null || saleRequest.getDiscountPercentage() <= 0) {

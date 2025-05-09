@@ -62,34 +62,19 @@ public class MpesaPaymentService {
                                        Sale sale) throws Exception {
         try {
             String accessToken = generateAccessToken();
-            logger.info("Access token generated for payment initiation");
-
             Transaction transaction = createTransactionRecord(amount, phoneNumber, currency, sale);
-            logger.info("Transaction created: ID={}, PhoneNumber={}, CheckoutRequestID={}",
-                    transaction.getId(), phoneNumber, transaction.getCheckoutRequestId());
-
             Map<String, Object> stkPushRequest = prepareStkPushRequest(amount, phoneNumber, transactionDesc);
-            logger.info("Sending STK Push request: {}", objectMapper.writeValueAsString(stkPushRequest));
-
             Map<String, Object> response = sendStkPushRequest(accessToken, stkPushRequest);
-            logger.info("STK Push response: {}", objectMapper.writeValueAsString(response));
-
             Transaction updatedTransaction = updateTransactionWithResponse(transaction, response);
-            logger.info("Transaction updated: ID={}, CheckoutRequestID={}",
-                    updatedTransaction.getId(), updatedTransaction.getCheckoutRequestId());
             return updatedTransaction;
         } catch (Exception e) {
-            logger.error("Payment initiation failed for phoneNumber={}: {}", phoneNumber, e.getMessage(), e);
             throw new Exception("Payment initiation failed: " + e.getMessage());
         }
     }
 
-    public boolean confirmPayment(Transaction transaction) throws InterruptedException {
-        return confirmPayment(transaction, paymentTimeout);
-    }
+
 
     public boolean confirmPayment(Transaction transaction, int timeoutSeconds) throws InterruptedException {
-        long startTime = System.currentTimeMillis();
         long pollInterval = 5; // seconds
         int maxAttempts = timeoutSeconds / (int) pollInterval;
 
@@ -102,12 +87,10 @@ public class MpesaPaymentService {
                 return true;
             }
             if ("FAILED".equals(updated.getStatus())) {
-                logger.warn("Payment failed for transaction: {}", transaction.getId());
                 return false;
             }
 
             if (i == maxAttempts - 1) {
-                logger.info("Final attempt: Querying M-Pesa for transaction: {}", transaction.getId());
                 boolean isPaid = checkPaymentStatus(updated.getCheckoutRequestId());
                 if (isPaid) {
                     return true;
@@ -124,24 +107,8 @@ public class MpesaPaymentService {
         return false;
     }
 
-    @Scheduled(fixedRate = 300000) // 5 minutes
-    public void reconcilePendingTransactions() {
-        List<Transaction> pending = transactionRepository
-                .findByStatusAndCreatedAtAfter("PENDING", LocalDateTime.now().minusHours(1));
+    //!!!! important - for reconciling pendingTransactions. check date - 9/05/25 commits
 
-        pending.forEach(transaction -> {
-            try {
-                boolean isPaid = checkPaymentStatus(transaction.getCheckoutRequestId());
-                if (isPaid) {
-                    transaction.setStatus("SUCCESS");
-                    transactionRepository.save(transaction);
-                    logger.info("Reconciled pending transaction: {}", transaction.getId());
-                }
-            } catch (Exception e) {
-                logger.error("Reconciliation failed for transaction {}", transaction.getId(), e);
-            }
-        });
-    }
 
     public void handleCallback(Map<String, Object> callbackData) {
         try {
@@ -154,7 +121,7 @@ public class MpesaPaymentService {
             Map<String, Object> stkCallback = extractCallbackData(callbackData);
             String checkoutRequestId = (String) stkCallback.get("CheckoutRequestID");
 
-            // 3. Find transaction with retries
+            // 3. Find transaction with retries - refactor this part - repeated
             Transaction transaction = null;
             if (transaction == null) {
                 logger.warn("No transaction found for CheckoutRequestID: {} after retries", checkoutRequestId);
@@ -165,7 +132,7 @@ public class MpesaPaymentService {
 
             logger.info("Successfully processed callback for transaction: {}", transaction.getId());
         } catch (Exception e) {
-            logger.error("Callback processing failed: {}");
+            logger.error("Callback failed: {}");
         }
     }
     private Transaction createTransactionRecord(double amount, String phoneNumber,
