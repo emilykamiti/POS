@@ -24,4 +24,5 @@ public class SaleResponseDto {
     private CustomerDto customer;
     private String paymentMethod;
     private List<SaleItemResponseDto> items;
+    private TransactionDto transaction;
 }

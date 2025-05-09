@@ -73,9 +73,9 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>com.github.Safaricom</groupId>
-            <artifactId>mpesa-php-sdk</artifactId>
-            <version>2.2.0</version>
+            <groupId>io.github.japheth-waswa.mpesa</groupId>
+            <artifactId>mpesa-sdk</artifactId>
+            <version>1.0.2</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -85,7 +85,7 @@
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
-            <version>1.4.11</version>
+            <version>1.5.13</version>
         </dependency>
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

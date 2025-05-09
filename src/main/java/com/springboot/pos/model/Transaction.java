@@ -3,19 +3,24 @@ package com.springboot.pos.model;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
 @Getter
 @Setter
 @Entity
+
+@Table(name = "transactions")
 public class Transaction {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String checkoutRequestId; // M-Pesa CheckoutRequestID to match callback
+    @Column(name = "checkout_requestid")
+    private String checkoutRequestId; //
 
     private String transactionId; // M-Pesa Transaction ID (e.g., Receipt Number)
 
@@ -31,8 +36,11 @@ public class Transaction {
 
     private String resultDesc; // From callback
 
+    @CreationTimestamp
+    @Column(updatable = false)
     private LocalDateTime createdAt;
 
+    @UpdateTimestamp
     private LocalDateTime updatedAt;
 
     @OneToOne
@@ -44,5 +52,4 @@ public class Transaction {
         if (sale != null && sale.getTransaction() != this) {
             sale.setTransaction(this);
         }
-    }
-}
+    }}

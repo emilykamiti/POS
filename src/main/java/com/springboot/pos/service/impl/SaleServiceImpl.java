@@ -10,6 +10,8 @@ import com.springboot.pos.service.SaleService;
 import com.springboot.pos.service.MpesaPaymentService;
 import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -20,14 +22,13 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 public class SaleServiceImpl implements SaleService {
+
+    private static final Logger logger = LoggerFactory.getLogger(SaleServiceImpl.class);
 
     private final SaleRepository saleRepository;
     private final UserRepository userRepository;
@@ -37,6 +38,7 @@ public class SaleServiceImpl implements SaleService {
     private final ModelMapper mapper;
     private final AuditLogRepository auditLogRepository;
     private final MpesaPaymentService mpesaPaymentService;
+    private final TransactionRepository transactionRepository;
 
     public SaleServiceImpl(
             SaleRepository saleRepository,
@@ -46,7 +48,8 @@ public class SaleServiceImpl implements SaleService {
             SaleItemService saleItemService,
             ModelMapper mapper,
             AuditLogRepository auditLogRepository,
-            MpesaPaymentService mpesaPaymentService
+            MpesaPaymentService mpesaPaymentService,
+            TransactionRepository transactionRepository
     ) {
         this.saleRepository = saleRepository;
         this.userRepository = userRepository;
@@ -56,173 +59,179 @@ public class SaleServiceImpl implements SaleService {
         this.mapper = mapper;
         this.auditLogRepository = auditLogRepository;
         this.mpesaPaymentService = mpesaPaymentService;
+        this.transactionRepository = transactionRepository;
     }
 
     @Override
     @Transactional(rollbackOn = Exception.class)
     public SaleResponseDto processSale(SaleRequestDto saleRequest) {
+        Objects.requireNonNull(saleRequest, "Sale request cannot be null");
+        if (saleRequest.getItems() == null || saleRequest.getItems().isEmpty()) {
+            throw new IllegalArgumentException("Sale items cannot be empty");
+        }
+
+        Transaction transaction = null;
+        Sale sale = null;
+
         try {
-            // Reserve stock to prevent overselling
+            // 1. Reserve stock
             productService.reserveStockForSale(saleRequest);
 
-            // Create Sale entity
-            Sale sale = new Sale();
-            sale.setSaleDate(LocalDateTime.now());
+            // 2. Create and persist Sale
+            sale = createAndPersistSale(saleRequest);
 
-            if (saleRequest.getUserId() != null) {
-                User user = userRepository.findById(saleRequest.getUserId())
-                        .orElseThrow(() -> new ResourceNotFoundException("User", "id", saleRequest.getUserId()));
-                sale.setUser(user);
-            }
-            Customer customer = null;
-            if (saleRequest.getCustomerId() != null) {
-                customer = customerRepository.findById(saleRequest.getCustomerId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Customer", "id", saleRequest.getCustomerId()));
-                sale.setCustomer(customer);
-            }
-            sale.setPaymentMethod(saleRequest.getPaymentMethod());
-
-            // Initialize required fields
-            String currency = saleRequest.getCurrency() != null ? saleRequest.getCurrency() : "KES";
-            BigDecimal subtotalAmount = BigDecimal.ZERO;
-            List<Product> productsToUpdate = new ArrayList<>();
-            List<SaleItem> saleItems = new ArrayList<>();
-
-            for (SaleItemRequestDto itemDto : saleRequest.getItems()) {
-                ProductDto productDto = productService.getProductById(itemDto.getProductId());
-                Product product = productService.mapToEntity(productDto);
-
-                BigDecimal unitPrice = convertCurrency(product.getPrice(), "KES", currency);
-                BigDecimal itemTotal = calculateItemTotal(itemDto.getQuantity(), unitPrice);
-                subtotalAmount = subtotalAmount.add(itemTotal);
-
-                productService.updateProductStock(product, itemDto.getQuantity());
-                productsToUpdate.add(product);
-
-                SaleItemResponseDto saleItemDto = new SaleItemResponseDto();
-                saleItemDto.setProductId(product.getId());
-                saleItemDto.setProductName(product.getName());
-                saleItemDto.setQuantity(itemDto.getQuantity());
-                saleItemDto.setUnitPrice(unitPrice);
-                saleItemDto.setTotalPrice(itemTotal);
-
-                // Prepare SaleItem entity
-                SaleItem saleItem = saleItemService.prepareSaleItem(saleItemDto);
-                saleItem.setSale(sale); // Set bidirectional relationship
-                saleItems.add(saleItem);
+            // 3. Process payment if M-PESA
+            if ("M-PESA".equals(saleRequest.getPaymentMethod())) {
+                transaction = processMpesaPayment(saleRequest, sale);
             }
 
-            // Set sale items on the Sale entity
-            sale.setSaleItems(saleItems);
+            // 4. Finalize sale
+            return finalizeSaleProcessing(saleRequest, sale, transaction);
 
-            // Ensure each SaleItem is aware of its Sale
-            for (SaleItem saleItem : saleItems) {
-                saleItem.setSale(sale);
-            }
-
-            // Calculate discounts and taxes
-            BigDecimal loyaltyDiscount = BigDecimal.ZERO;
-            if (customer != null && saleRequest.getUseLoyaltyPoints() != null && saleRequest.getUseLoyaltyPoints() > 0) {
-                int pointsToUse = Math.min(saleRequest.getUseLoyaltyPoints(), customer.getLoyaltyPoints());
-                loyaltyDiscount = convertCurrency(BigDecimal.valueOf(pointsToUse), "KES", currency);
-                customer.setLoyaltyPoints(customer.getLoyaltyPoints() - pointsToUse);
-            }
-
-            BigDecimal discountAmount = BigDecimal.ZERO;
-            if (saleRequest.getDiscountPercentage() != null && saleRequest.getDiscountPercentage() > 0) {
-                BigDecimal discountPercentage = BigDecimal.valueOf(saleRequest.getDiscountPercentage());
-                discountAmount = subtotalAmount.multiply(discountPercentage);
-                subtotalAmount = subtotalAmount.subtract(discountAmount);
-            }
-
-            subtotalAmount = subtotalAmount.subtract(loyaltyDiscount);
-
-            BigDecimal taxAmount = BigDecimal.ZERO;
-            if (saleRequest.getTaxPercentage() != null && saleRequest.getTaxPercentage() > 0) {
-                BigDecimal taxPercentage = BigDecimal.valueOf(saleRequest.getTaxPercentage());
-                taxAmount = subtotalAmount.multiply(taxPercentage);
-                subtotalAmount = subtotalAmount.add(taxAmount);
-            }
-
-            // Set all required fields before payment processing
-            sale.setSubtotalAmount(subtotalAmount.doubleValue());
-            sale.setDiscountAmount(discountAmount.doubleValue());
-            sale.setTaxAmount(taxAmount.doubleValue());
-            sale.setTotalAmount(subtotalAmount.doubleValue());
-
-            // Process payment via M-Pesa STK Push before saving the sale
-            String phoneNumber = saleRequest.getPhoneNumber();
-            if (phoneNumber == null && customer != null) {
-                phoneNumber = customer.getPhoneNumber();
-            }
-            if (phoneNumber == null) {
-                throw new SaleProcessingException("Customer phone number is required for M-Pesa payment");
-            }
-            if (!phoneNumber.startsWith("254")) {
-                phoneNumber = "254" + phoneNumber.substring(1);
-            }
-
-            // Initiate STK Push payment
-            Transaction transaction;
-            try {
-                transaction = mpesaPaymentService.initiatePayment(
-                        sale.getTotalAmount(),
-                        phoneNumber,
-                        currency,
-                        "POS Sale Transaction - Sale ID: " + sale.getId()
-                );
-            } catch (Exception e) {
-                throw new SaleProcessingException("Failed to initiate M-Pesa payment: " + e.getMessage(), e);
-            }
-
-            // Wait for payment confirmation (with a timeout of 60 seconds)
-            boolean paymentSuccessful;
-            try {
-                paymentSuccessful = mpesaPaymentService.confirmPayment(transaction, 60);
-            } catch (InterruptedException e) {
-                throw new SaleProcessingException("Payment confirmation interrupted: " + e.getMessage(), e);
-            }
-
-            if (!paymentSuccessful) {
-                throw new SaleProcessingException("M-Pesa payment failed: " + transaction.getResultDesc());
-            }
-
-            // Link the transaction to the sale
-            transaction.setSale(sale);
-            sale.setTransaction(transaction);
-
-            // Update customer loyalty points after successful payment
-            if (customer != null) {
-                BigDecimal subtotalInKES = convertCurrency(subtotalAmount, currency, "KES");
-                int pointsEarned = subtotalInKES.divide(BigDecimal.valueOf(100), RoundingMode.FLOOR).intValue();
-                customer.setLoyaltyPoints(customer.getLoyaltyPoints() + pointsEarned);
-                customerRepository.save(customer);
-            }
-
-            // Save the sale and related data after payment is successful
-            sale = saleRepository.save(sale);
-            for (SaleItem saleItem : sale.getSaleItems()) {
-                saleItemService.logSaleItemCreation(saleItem);
-            }
-
-            // Log the sale creation
-            AuditLog log = new AuditLog();
-            log.setEntityType("Sale");
-            log.setEntityId(sale.getId());
-            log.setAction("CREATE");
-            log.setUser(SecurityContextHolder.getContext().getAuthentication().getName());
-            log.setTimestamp(LocalDateTime.now());
-            log.setDetails("Created sale with total amount: " + sale.getTotalAmount() + " " + currency + ", M-Pesa Transaction ID: " + transaction.getTransactionId());
-            auditLogRepository.save(log);
-
-            return mapToSaleResponseDto(sale);
-        } catch (IllegalArgumentException e) {
-            productService.releaseReservedStock(saleRequest);
-            throw e;
         } catch (Exception e) {
-            productService.releaseReservedStock(saleRequest);
+            handleProcessingFailure(saleRequest, transaction, e);
             throw new SaleProcessingException("Failed to process sale: " + e.getMessage(), e);
         }
+    }
+
+    private Sale createAndPersistSale(SaleRequestDto saleRequest) {
+        Sale sale = new Sale();
+        sale.setSaleDate(LocalDateTime.now());
+        sale.setPaymentMethod(saleRequest.getPaymentMethod());
+
+        // Set user if provided
+        if (saleRequest.getUserId() != null) {
+            User user = userRepository.findById(saleRequest.getUserId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", saleRequest.getUserId()));
+            sale.setUser(user);
+        }
+
+        // Set customer if provided
+        Customer customer = null;
+        if (saleRequest.getCustomerId() != null) {
+            customer = customerRepository.findById(saleRequest.getCustomerId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Customer", "id", saleRequest.getCustomerId()));
+            sale.setCustomer(customer);
+        }
+
+        // Process sale items
+        String currency = Optional.ofNullable(saleRequest.getCurrency()).orElse("KES");
+        List<SaleItem> saleItems = processSaleItems(saleRequest, sale, currency);
+        sale.setSaleItems(saleItems);
+
+        // Calculate pricing
+        BigDecimal subtotalAmount = calculateSubtotalAmount(saleItems);
+        BigDecimal discountAmount = calculateDiscount(saleRequest, subtotalAmount);
+        BigDecimal loyaltyDiscount = calculateLoyaltyDiscount(saleRequest, customer, currency);
+        BigDecimal taxAmount = calculateTax(saleRequest, subtotalAmount.subtract(discountAmount).subtract(loyaltyDiscount));
+
+        // Set final amounts
+        BigDecimal totalAmount = subtotalAmount.subtract(discountAmount).subtract(loyaltyDiscount).add(taxAmount);
+        setSaleAmounts(sale, subtotalAmount, discountAmount, loyaltyDiscount, taxAmount, totalAmount);
+
+        // Persist the sale to generate ID
+        return saleRepository.save(sale);
+    }
+
+    private List<SaleItem> processSaleItems(SaleRequestDto saleRequest, Sale sale, String currency) {
+        return saleRequest.getItems().stream()
+                .map(itemDto -> {
+                    ProductDto productDto = productService.getProductById(itemDto.getProductId());
+                    Product product = productService.mapToEntity(productDto);
+
+                    BigDecimal unitPrice = convertCurrency(product.getPrice(), "KES", currency);
+                    BigDecimal itemTotal = calculateItemTotal(itemDto.getQuantity(), unitPrice);
+
+                    SaleItem saleItem = saleItemService.prepareSaleItem(
+                            SaleItemResponseDto.of(
+                                    null, // id can be null if it's auto-generated
+                                    product.getId(),
+                                    product.getName(),
+                                    itemDto.getQuantity(),
+                                    unitPrice,
+                                    itemTotal
+                            )
+                    );
+                    saleItem.setSale(sale);
+                    return saleItem;
+                })
+                .collect(Collectors.toList());
+    }
+
+    private Transaction processMpesaPayment(SaleRequestDto saleRequest, Sale sale) throws Exception {
+        Customer customer = sale.getCustomer();
+        String phoneNumber = validateAndFormatPhoneNumber(
+                saleRequest.getPhoneNumber(),
+                customer
+        );
+        String currency = Optional.ofNullable(saleRequest.getCurrency()).orElse("KES");
+
+        Transaction transaction = mpesaPaymentService.initiatePayment(
+                sale.getTotalAmount(),
+                phoneNumber,
+                currency,
+                "POS Sale Transaction - Sale ID: " + sale.getId(),
+                sale
+        );
+
+        logger.info("Payment initiated with CheckoutRequestID: {}", transaction.getCheckoutRequestId());
+
+        if (!mpesaPaymentService.confirmPayment(transaction, 180)) {
+            throw new SaleProcessingException("M-Pesa payment failed: " + transaction.getResultDesc());
+        }
+
+        return transaction;
+    }
+
+    private SaleResponseDto finalizeSaleProcessing(SaleRequestDto saleRequest, Sale sale, Transaction transaction) {
+        // Update customer loyalty points
+        if (sale.getCustomer() != null) {
+            updateCustomerLoyaltyPoints(
+                    sale.getCustomer(),
+                    BigDecimal.valueOf(sale.getTotalAmount()),
+                    Optional.ofNullable(saleRequest.getCurrency()).orElse("KES"),
+                    saleRequest.getUseLoyaltyPoints()
+            );
+        }
+
+        // Update transaction reference if exists
+        if (transaction != null) {
+            sale.setTransaction(transaction);
+            sale = saleRepository.save(sale);
+        }
+
+        // Log sale items and audit
+        logSaleItems(sale);
+        logAudit(sale,
+                Optional.ofNullable(saleRequest.getCurrency()).orElse("KES"),
+                transaction);
+
+        return mapToSaleResponseDto(sale);
+    }
+
+    private void handleProcessingFailure(SaleRequestDto saleRequest, Transaction transaction, Exception e) {
+        logger.error("Sale processing failed: {}", e.getMessage(), e);
+        productService.releaseReservedStock(saleRequest);
+
+        if (transaction != null) {
+            transaction.setStatus("FAILED");
+            transaction.setResultDesc(e.getMessage());
+            transactionRepository.save(transaction);
+        }
+    }
+
+    private BigDecimal calculateSubtotalAmount(List<SaleItem> saleItems) {
+        return saleItems.stream()
+                .map(SaleItem::getTotalPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private void setSaleAmounts(Sale sale, BigDecimal subtotalAmount, BigDecimal discountAmount,
+                                BigDecimal loyaltyDiscount, BigDecimal taxAmount, BigDecimal totalAmount) {
+        sale.setSubtotalAmount(subtotalAmount.doubleValue());
+        sale.setDiscountAmount(discountAmount.doubleValue());
+        sale.setTaxAmount(taxAmount.doubleValue());
+        sale.setTotalAmount(totalAmount.doubleValue());
     }
 
     @Override
@@ -233,18 +242,18 @@ public class SaleServiceImpl implements SaleService {
         Pageable pageable = PageRequest.of(pageNo, pageSize, sort);
         Page<Sale> sales = saleRepository.findAll(pageable);
 
-        List<SaleResponseDto> content = sales.getContent()
-                .stream()
+        List<SaleResponseDto> content = sales.getContent().stream()
                 .map(this::mapToSaleResponseDto)
                 .collect(Collectors.toList());
-        PagedResponse<SaleResponseDto> saleResponse = new PagedResponse<>();
-        saleResponse.setContent(content);
-        saleResponse.setPageNo(sales.getNumber());
-        saleResponse.setPageSize(sales.getSize());
-        saleResponse.setTotalElements(sales.getTotalElements());
-        saleResponse.setTotalPages(sales.getTotalPages());
-        saleResponse.setLast(sales.isLast());
-        return saleResponse;
+
+        return new PagedResponse<>(
+                content,
+                sales.getNumber(),
+                sales.getSize(),
+                sales.getTotalElements(),
+                sales.getTotalPages(),
+                sales.isLast()
+        );
     }
 
     @Override
@@ -254,27 +263,98 @@ public class SaleServiceImpl implements SaleService {
         return mapToSaleResponseDto(sale);
     }
 
-    public List<ProductSalesReportDto> getProductSalesReport(LocalDateTime startDate, LocalDateTime endDate) {
-        List<Sale> sales = saleRepository.findBySaleDateBetween(startDate, endDate);
-        Map<Product, Integer> productSales = new HashMap<>();
+//    @Override
+//    public List<ProductSalesReportDto> getProductSalesReport(LocalDateTime startDate, LocalDateTime endDate) {
+//        List<Sale> sales = saleRepository.findBySaleDateBetween(startDate, endDate);
+//        Map<Product, Integer> productSales = new HashMap<>();
+//
+//        sales.forEach(sale -> sale.getSaleItems().forEach(item ->
+//                productSales.merge(item.getProduct(), item.getQuantity(), Integer::sum)));
+//
+//        return productSales.entrySet().stream()
+//                .map(entry -> new ProductSalesReportDto(
+//                        mapper.map(entry.getKey(), ProductDto.class),
+//                        entry.getValue(),
+//                        entry.getKey().getPrice().multiply(BigDecimal.valueOf(entry.getValue()))
+//                ))
+//                .sorted(Comparator.comparing(ProductSalesReportDto::getTotalUnitsSold).reversed())
+//                .collect(Collectors.toList());
+//    }
 
-        for (Sale sale : sales) {
-            for (SaleItem saleItem : sale.getSaleItems()) {
-                Product product = saleItem.getProduct();
-                productSales.merge(product, saleItem.getQuantity(), Integer::sum);
-            }
+    private BigDecimal calculateDiscount(SaleRequestDto saleRequest, BigDecimal subtotal) {
+        if (saleRequest.getDiscountPercentage() == null || saleRequest.getDiscountPercentage() <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return subtotal.multiply(
+                BigDecimal.valueOf(saleRequest.getDiscountPercentage() / 100)
+        ).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal calculateLoyaltyDiscount(SaleRequestDto saleRequest, Customer customer, String currency) {
+        if (customer == null || saleRequest.getUseLoyaltyPoints() == null ||
+                saleRequest.getUseLoyaltyPoints() <= 0) {
+            return BigDecimal.ZERO;
         }
 
-        return productSales.entrySet().stream()
-                .map(entry -> {
-                    ProductSalesReportDto report = new ProductSalesReportDto();
-                    report.setProduct(mapper.map(entry.getKey(), ProductDto.class));
-                    report.setTotalUnitsSold(entry.getValue());
-                    report.setTotalRevenue(entry.getKey().getPrice().multiply(BigDecimal.valueOf(entry.getValue())));
-                    return report;
-                })
-                .sorted((a, b) -> b.getTotalUnitsSold().compareTo(a.getTotalUnitsSold()))
-                .collect(Collectors.toList());
+        int pointsToUse = Math.min(saleRequest.getUseLoyaltyPoints(), customer.getLoyaltyPoints());
+        customer.setLoyaltyPoints(customer.getLoyaltyPoints() - pointsToUse);
+        return convertCurrency(BigDecimal.valueOf(pointsToUse), "KES", currency);
+    }
+
+    private BigDecimal calculateTax(SaleRequestDto saleRequest, BigDecimal subtotal) {
+        if (saleRequest.getTaxPercentage() == null || saleRequest.getTaxPercentage() <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return subtotal.multiply(
+                BigDecimal.valueOf(saleRequest.getTaxPercentage() / 100)
+        ).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private String validateAndFormatPhoneNumber(String phoneNumber, Customer customer) {
+        if (phoneNumber == null && customer != null) {
+            phoneNumber = customer.getPhoneNumber();
+        }
+
+        if (phoneNumber == null) {
+            throw new SaleProcessingException("Phone number is required for M-Pesa payment");
+        }
+
+        if (!phoneNumber.startsWith("254")) {
+            phoneNumber = "254" + phoneNumber.substring(1);
+        }
+
+        return phoneNumber;
+    }
+
+    private void updateCustomerLoyaltyPoints(Customer customer, BigDecimal subtotalAmount,
+                                             String currency, Integer usedPoints) {
+        BigDecimal subtotalInKES = convertCurrency(subtotalAmount, currency, "KES");
+        int pointsEarned = subtotalInKES.divide(BigDecimal.valueOf(100), RoundingMode.FLOOR).intValue();
+        customer.setLoyaltyPoints(customer.getLoyaltyPoints() + pointsEarned);
+        customerRepository.save(customer);
+    }
+
+    private void logSaleItems(Sale sale) {
+        for (SaleItem saleItem : sale.getSaleItems()) {
+            saleItemService.logSaleItemCreation(saleItem);
+        }
+    }
+
+    private void logAudit(Sale sale, String currency, Transaction transaction) {
+        AuditLog log = new AuditLog();
+        log.setEntityType("Sale");
+        log.setEntityId(sale.getId());
+        log.setAction("CREATE");
+        log.setUser(SecurityContextHolder.getContext().getAuthentication().getName());
+        log.setTimestamp(LocalDateTime.now());
+
+        String details = "Created sale with total amount: " + sale.getTotalAmount() + " " + currency;
+        if (transaction != null) {
+            details += ", M-Pesa Transaction ID: " + transaction.getTransactionId();
+        }
+
+        log.setDetails(details);
+        auditLogRepository.save(log);
     }
 
     private SaleResponseDto mapToSaleResponseDto(Sale sale) {
@@ -288,10 +368,12 @@ public class SaleServiceImpl implements SaleService {
         saleResponseDto.setUser(sale.getUser() != null ? mapper.map(sale.getUser(), UserDto.class) : null);
         saleResponseDto.setCustomer(sale.getCustomer() != null ? mapper.map(sale.getCustomer(), CustomerDto.class) : null);
         saleResponseDto.setPaymentMethod(sale.getPaymentMethod());
+
         List<SaleItemResponseDto> saleItems = sale.getSaleItems()
                 .stream()
                 .map(this::mapToSaleItemResponseDto)
                 .collect(Collectors.toList());
+
         saleResponseDto.setItems(saleItems);
         return saleResponseDto;
     }
@@ -306,31 +388,22 @@ public class SaleServiceImpl implements SaleService {
         return saleItemDto;
     }
 
-    private Sale mapToEntity(SaleResponseDto saleResponseDto) {
-        Sale sale = mapper.map(saleResponseDto, Sale.class);
-        return sale;
-    }
-
     private BigDecimal calculateItemTotal(int quantity, BigDecimal unitPrice) {
         return unitPrice.multiply(BigDecimal.valueOf(quantity));
     }
 
     private BigDecimal convertCurrency(BigDecimal amount, String fromCurrency, String toCurrency) {
         if (fromCurrency.equals(toCurrency)) return amount;
-        BigDecimal exchangeRate = fetchExchangeRate(fromCurrency, toCurrency);
-        return amount.multiply(exchangeRate).setScale(2, RoundingMode.HALF_UP);
-    }
 
-    private BigDecimal fetchExchangeRate(String fromCurrency, String toCurrency) {
-        Map<String, BigDecimal> ratesFromKES = new HashMap<>();
-        ratesFromKES.put("KES", BigDecimal.ONE);
-        ratesFromKES.put("USD", BigDecimal.valueOf(0.0078));
+        Map<String, BigDecimal> exchangeRates = new HashMap<>();
+        exchangeRates.put("KES-USD", BigDecimal.valueOf(0.0078));
+        exchangeRates.put("USD-KES", BigDecimal.valueOf(128.50));
 
-        if (!ratesFromKES.containsKey(fromCurrency) || !ratesFromKES.containsKey(toCurrency)) {
-            throw new IllegalArgumentException("Unsupported currency pair: " + fromCurrency + " to " + toCurrency);
+        String key = fromCurrency + "-" + toCurrency;
+        if (exchangeRates.containsKey(key)) {
+            return amount.multiply(exchangeRates.get(key)).setScale(2, RoundingMode.HALF_UP);
         }
-        BigDecimal rateFrom = ratesFromKES.get(fromCurrency);
-        BigDecimal rateTo = ratesFromKES.get(toCurrency);
-        return rateTo.divide(rateFrom, 6, RoundingMode.HALF_UP);
+
+        throw new IllegalArgumentException("Unsupported currency conversion: " + fromCurrency + " to " + toCurrency);
     }
 }

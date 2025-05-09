@@ -8,6 +8,6 @@ public interface SaleItemService {
     SaleItemResponseDto createSaleItem(SaleItemResponseDto saleItemDto);
     PagedResponse<SaleItemResponseDto> getAllSaleItems(int pageNo, int pageSize, String sortBy, String sortDir);
     SaleItemResponseDto getSaleItemById(long id);
-    SaleItem prepareSaleItem(SaleItemResponseDto saleItemDto); // Add this
+    SaleItem prepareSaleItem(SaleItemResponseDto saleItemDto);
     void logSaleItemCreation(SaleItem saleItem);
 }

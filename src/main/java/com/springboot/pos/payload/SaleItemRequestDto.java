@@ -6,6 +6,7 @@ import lombok.Data;
 
 @Data
 public class SaleItemRequestDto {
+    private Long id;
     @NotNull(message = "Product ID is required")
     private Long productId;
 
