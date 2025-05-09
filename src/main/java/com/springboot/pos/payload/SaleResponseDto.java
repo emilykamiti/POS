@@ -24,5 +24,5 @@ public class SaleResponseDto {
     private CustomerDto customer;
     private String paymentMethod;
     private List<SaleItemResponseDto> items;
-    private TransactionDto transaction;
+//    private TransactionDto transaction; //  i can add this later if i want transaction details to display
 }
