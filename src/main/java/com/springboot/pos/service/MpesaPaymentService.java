@@ -201,6 +201,47 @@ public class MpesaPaymentService {
         return request;
     }
 
+
+    private String generateAccessToken() throws Exception {
+        String url = "live".equals(env) ?
+                "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials" :
+                "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials";
+
+        String auth = Base64.getEncoder().encodeToString((consumerKey + ":" + consumerSecret).getBytes());
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Basic " + auth);
+
+        HttpEntity<String> request = new HttpEntity<>(headers);
+        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+
+        if (response.getStatusCode() != HttpStatus.OK || response.getBody() == null) {
+            throw new Exception("Failed to generate access token: " + response.getStatusCode());
+        }
+
+        return (String) response.getBody().get("access_token");
+    }
+
+    private Map<String, Object> sendStkPushRequest(String accessToken,
+                                                   Map<String, Object> requestBody) throws Exception {
+        String url = "live".equals(env) ?
+                "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest" :
+                "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + accessToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
+        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, request, Map.class);
+
+        if (response.getStatusCode() != HttpStatus.OK || response.getBody() == null) {
+            throw new Exception("STK Push failed: " + response.getStatusCode());
+        }
+
+        return response.getBody();
+    }
+
     private Transaction updateTransactionWithResponse(Transaction transaction,
                                                       Map<String, Object> response) {
         String checkoutRequestId = (String) response.get("CheckoutRequestID");
@@ -340,43 +381,4 @@ public class MpesaPaymentService {
         return false;
     }
 
-    private String generateAccessToken() throws Exception {
-        String url = "live".equals(env) ?
-                "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials" :
-                "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials";
-
-        String auth = Base64.getEncoder().encodeToString((consumerKey + ":" + consumerSecret).getBytes());
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Basic " + auth);
-
-        HttpEntity<String> request = new HttpEntity<>(headers);
-        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-
-        if (response.getStatusCode() != HttpStatus.OK || response.getBody() == null) {
-            throw new Exception("Failed to generate access token: " + response.getStatusCode());
-        }
-
-        return (String) response.getBody().get("access_token");
-    }
-
-    private Map<String, Object> sendStkPushRequest(String accessToken,
-                                                   Map<String, Object> requestBody) throws Exception {
-        String url = "live".equals(env) ?
-                "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest" :
-                "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + accessToken);
-        headers.setContentType(MediaType.APPLICATION_JSON);
-
-        HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
-        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, request, Map.class);
-
-        if (response.getStatusCode() != HttpStatus.OK || response.getBody() == null) {
-            throw new Exception("STK Push failed: " + response.getStatusCode());
-        }
-
-        return response.getBody();
-    }
 }
