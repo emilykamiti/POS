@@ -156,16 +156,6 @@ public class MpesaPaymentService {
 
             // 3. Find transaction with retries
             Transaction transaction = null;
-            for (int attempt = 1; attempt <= 5; attempt++) {
-                transaction = transactionRepository.findByCheckoutRequestId(checkoutRequestId)
-                        .orElse(null);
-                if (transaction != null) {
-                    break;
-                }
-                logger.warn("Transaction not found for CheckoutRequestID: {}, attempt {}/5", checkoutRequestId, attempt);
-                Thread.sleep(1000); // Wait 1 second
-            }
-
             if (transaction == null) {
                 logger.warn("No transaction found for CheckoutRequestID: {} after retries", checkoutRequestId);
                 return;
