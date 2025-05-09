@@ -6,6 +6,8 @@ import {
   FiLogOut,
   FiSettings,
   FiSearch,
+  FiLogIn,
+  FiUserPlus,
 } from "react-icons/fi";
 
 const DashboardHeader = ({ pageTitle }) => {
@@ -16,7 +18,7 @@ const DashboardHeader = ({ pageTitle }) => {
   const [user, setUser] = useState({
     name: "Guest",
     email: "guest@example.com",
-    profileImage: "default.png",
+    profileImage: "../assets/default.png",
   });
 
   useEffect(() => {
@@ -54,15 +56,12 @@ const DashboardHeader = ({ pageTitle }) => {
     <div className="bg-gray-200 min-h-screen flex justify-center p-4">
       <header className="fixed top-5 left-1/2 transform -translate-x-1/2 z-10 flex items-center justify-between px-6 py-3 w-[95%] max-w-6xl bg-white shadow-lg text-gray-800 rounded-full">
         {/* Left Side: Logo */}
-        <h1 className="text-xl font-bold">Pos</h1>
+        <h1 className="text-xl font-bold">POSS</h1>
 
         {/* Center: Navigation Links */}
         <nav className="flex-1 flex justify-center space-x-8">
           <Link to="/" className="text-gray-600 hover:text-gray-800">
             Home
-          </Link>
-          <Link to="/customers" className="text-gray-600 hover:text-gray-800">
-            Customers
           </Link>
           <Link to="/products" className="text-gray-600 hover:text-gray-800">
             Products
@@ -70,54 +69,112 @@ const DashboardHeader = ({ pageTitle }) => {
           <Link to="/sales" className="text-gray-600 hover:text-gray-800">
             Sales
           </Link>
+          <Link to="/discounts" className="text-gray-600 hover:text-gray-800">
+            Discounts
+          </Link>
+           <Link to="/discounts" className="text-gray-600 hover:text-gray-800">
+             Admin
+          </Link>
         </nav>
-
-        {/* Right Side: Open Account Button or User Dropdown */}
+     {/* Right Side: Profile Image, Dropdown, Settings, and Notifications */}
+        <button className="p-4 hover:bg-gray-200 rounded-full">
+            <FiSettings className="text-gray-800 text-xl" />
+        </button>
+        <button className="p-4 hover:bg-gray-200 rounded-full">
+            <FiBell className="text-gray-800 text-xl" />
+        </button>
         <div className="flex items-center space-x-4">
           {user.name === "Guest" ? (
-            <Link
-              to="/signup"
-              className="px-4 py-2 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors duration-300"
-            >
-              Open Account
-            </Link>
-          ) : (
-            <div className="relative">
-              <button
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center space-x-2 focus:outline-none"
-              >
-                <img
-                  src={
-                    user.profileImage && user.profileImage !== "default.png"
-                      ? `/uploads/${user.profileImage}`
-                      : "/uploads/default.png"
-                  }
-                  alt="User"
-                  className="h-8 w-8 rounded-full object-cover border-2 border-gray-300"
-                />
-                <FiChevronDown
-                  className={`text-gray-800 transition-transform ${
-                    isDropdownOpen ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
-              {isDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-20 border border-gray-200">
-                  <div className="px-4 py-2 border-b border-gray-200">
-                    <p className="text-sm font-medium text-gray-800">
-                      {user.name}
-                    </p>
-                    <p className="text-xs text-gray-500">{user.email}</p>
+            <div className="flex items-center space-x-2">
+              <div className="relative">
+                <button
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="flex items-center space-x-2 focus:outline-none"
+                >
+                  <img
+                    src="../assets/default.png"
+                    alt="Profile"
+                    className="h-8 w-8 rounded-full object-cover border-2 border-gray-300"
+                  />
+                  <FiChevronDown
+                    className={`text-gray-800 transition-transform ${
+                      isDropdownOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                {isDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-20 border border-gray-200">
+                    <Link
+                      to="/login"
+                      className="flex items-center justify-between px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      Login <FiLogIn className="mr-2" />
+                    </Link>
+                    <Link
+                      to="/signup"
+                      className="flex items-center justify-between px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      SignUp <FiUserPlus className="mr-2" />
+                    </Link>
+                    <Link
+                      to="/logout"
+                      className="flex items-center justify-between px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      LogOut <FiLogOut className="mr-2" />
+                    </Link>
                   </div>
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-                  >
-                    <FiLogOut className="mr-2" /> Logout
-                  </button>
-                </div>
-              )}
+                )}
+              </div>
+
+            </div>
+          ) : (
+            <div className="flex items-center space-x-2">
+              <div className="relative">
+                <button
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="flex items-center space-x-2 focus:outline-none"
+                >
+                  <img
+                    src={
+                      user.profileImage && user.profileImage !== "default.png"
+                        ? `../assets/${user.profileImage}`
+                        : "../assets/default.png"
+                    }
+                    alt="User"
+                    className="h-8 w-8 rounded-full object-cover border-2 border-gray-300"
+                  />
+                  <FiChevronDown
+                    className={`text-gray-800 transition-transform ${
+                      isDropdownOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                {isDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-20 border border-gray-200">
+                    <div className="px-4 py-2 border-b border-gray-200">
+                      <p className="text-sm font-medium text-gray-800">
+                        {user.name}
+                      </p>
+                      <p className="text-xs text-gray-500">{user.email}</p>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                    >
+                      <FiLogOut className="mr-2" /> Logout
+                    </button>
+                  </div>
+                )}
+              </div>
+              <button className="p-2 hover:bg-gray-200 rounded-full">
+                <FiSettings className="text-gray-800 text-xl" />
+              </button>
+              <button className="p-2 hover:bg-gray-200 rounded-full">
+                <FiBell className="text-gray-800 text-xl" />
+              </button>
             </div>
           )}
         </div>
