@@ -53,8 +53,8 @@ const DashboardHeader = ({ pageTitle }) => {
   };
 
   return (
-    <div className="flex justify-center">
-    <header className="z-10 mt-5 flex items-center justify-between px-6 py-3 w-[95%] max-w-6xl bg-white-700 shadow-lg text-gray-800 rounded-full">
+    <div className="bg-gray-200 flex justify-center p-4">
+    <header className="z-10 mt-5 flex items-center justify-between px-6 py-3 w-[95%] max-w-7xl bg-white shadow-lg text-gray-800 rounded-full">
 
         {/* Left Side: Logo */}
         <h1 className="text-xl font-bold">POSS</h1>
@@ -65,7 +65,7 @@ const DashboardHeader = ({ pageTitle }) => {
             Home
           </Link>
           <Link to="/products" className="text-gray-600 hover:text-gray-800">
-            Products
+           Reports
           </Link>
           <Link to="/sales" className="text-gray-600 hover:text-gray-800">
             Sales

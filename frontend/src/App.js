@@ -20,12 +20,12 @@ function AppContent() {
   };
 
   return (
-    <div className="App">
+    <div className="App bg-gray-200">
       {/* Render DashboardHeader on every page */}
       <DashboardHeader pageTitle={getPageTitle()} />
       {/* Main content */}
       <div className="w-full flex justify-center">
-        <div className="p-8 pt-24 max-w-6xl w-full">
+        <div className="p-6 pt-2  max-w-7xl w-full">
           <Routes>
             {/* Redirect root to /dashboard */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
