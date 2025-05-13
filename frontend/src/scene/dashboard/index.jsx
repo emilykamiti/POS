@@ -10,11 +10,11 @@ const Dashboard = () => {
 
   // Sample data for orders and menu items
   const orders = [
-    { id: 1, name: "Yohana Rager", status: "Completed", table: "Table 2" },
-    { id: 2, name: "Cheryl Arlena", status: "In Progress", table: "Table 3" },
-    { id: 3, name: "Kylan Rex", status: "Pending", table: "Table 4" },
-    { id: 4, name: "Rijal Ardianto", status: "Completed", table: "Table 5" },
-    { id: 5, name: "Ed Bemi", status: "In Progress", table: "Table 6" },
+    { id: 1, name: "Kamiti", status: "Completed", table: "Table 2" },
+    { id: 2, name: "Cherry", status: "In Progress", table: "Table 3" },
+    { id: 3, name: "Mwambu", status: "Pending", table: "Table 4" },
+    { id: 4, name: "Wabusa", status: "Completed", table: "Table 5" },
+    { id: 5, name: "Buxton", status: "In Progress", table: "Table 6" },
     { id: 5, name: "nasinza", status: "Completed", table: "Table 6" },
   ];
 

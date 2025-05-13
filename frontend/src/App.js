@@ -1,52 +1,38 @@
-import React from "react";
-import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from "react-router-dom";
-import DashboardHeader from "./components/DashboardHeader";
-import PageHeader from "./components/PageHeader";
-import Dashboard from "./components/Dashboard";
-import Login from "./components/Login";
-import SignUp from "./components/SignUp";
-import SearchResults from "./components/SearchResults";
-
-// Wrapper component to determine page title dynamically
-function AppContent() {
-  const location = useLocation();
-
-  // Determine page title based on the current route
-  const getPageTitle = () => {
-    if (location.pathname === "/login") return "Login";
-    if (location.pathname === "/signup") return "Sign Up";
-    if (location.pathname === "/dashboard/search") return "Search Results";
-    return "Dashboard";
-  };
-
-  return (
-    <div className="App bg-gray-200">
-      {/* Render DashboardHeader on every page */}
-      <DashboardHeader pageTitle={getPageTitle()} />
-      {/* Main content */}
-      <div className="w-full flex justify-center">
-        <div className="p-6 pt-2  max-w-7xl w-full">
-          <Routes>
-            {/* Redirect root to /dashboard */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            {/* Dashboard route */}
-            <Route path="/dashboard" element={<Dashboard />} />
-            {/* Login route */}
-            <Route path="/login" element={<Login />} />
-            {/* Signup route */}
-            <Route path="/signup" element={<SignUp />} />
-          </Routes>
-        </div>
-      </div>
-    </div>
-  );
-}
+// src/App.js
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useAppContext } from './context/AppContext';
+import Layout from './scene/layout';
+import Dashboard from './scene/dashboard';
+import Products from './scene/products';
+import Customers from './scene/customers';
+import Transactions from './scene/transactions';
+import Login from './scene/login';
+import SignUp from './scene/signup';
+import Overview from './scene/overview';
+import Sales from './scene/sales';
 
 function App() {
+  const { mode } = useAppContext(); // Access theme mode from context
+
   return (
-    <Router>
-      <AppContent />
-    </Router>
+    <div className={`min-h-screen ${mode === 'dark' ? 'dark' : ''}`}>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/products" element={<Products />} />
+            <Route path="/customers" element={<Customers />} />
+            <Route path="/transactions" element={<Transactions />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<SignUp />} />
+            <Route path="/overview" element={<Overview />} />
+            <Route path="/sales" element={<Sales />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </div>
   );
 }
 
