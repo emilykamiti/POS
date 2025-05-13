@@ -1,162 +1,324 @@
-import React, { useState } from "react";
-import { useSelector } from "react-redux";
-import { Line } from "react-chartjs-2";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-} from "chart.js";
-import DashboardHeader from "../../components/DashboardHeader"; // Assuming Tailwind-styled header
+
+import React, { useState, useEffect } from 'react';
+import Header from '../../components/Header';
+import DataTable from '../../components/DataTable';
+import api from '../../state/api';
+import useTableParams from '../../hooks/useTableParams';
+import { useAppContext } from '../../context/AppContext';
+import { Bar, Pie } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 
 // Register Chart.js components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend
-);
-
-// Mock data (replace with real data from your backend)
-const mockData = {
-  sales: [
-    { month: "Jan", value: 12000 },
-    { month: "Feb", value: 15000 },
-    { month: "Mar", value: 13000 },
-    { month: "Apr", value: 17000 },
-    { month: "May", value: 16000 },
-    { month: "Jun", value: 14000 },
-    { month: "Jul", value: 18000 },
-    { month: "Aug", value: 19000 },
-    { month: "Sep", value: 16500 },
-    { month: "Oct", value: 17500 },
-    { month: "Nov", value: 20000 },
-    { month: "Dec", value: 21000 },
-  ],
-  units: [
-    { month: "Jan", value: 300 },
-    { month: "Feb", value: 450 },
-    { month: "Mar", value: 350 },
-    { month: "Apr", value: 500 },
-    { month: "May", value: 480 },
-    { month: "Jun", value: 400 },
-    { month: "Jul", value: 550 },
-    { month: "Aug", value: 600 },
-    { month: "Sep", value: 520 },
-    { month: "Oct", value: 540 },
-    { month: "Nov", value: 650 },
-    { month: "Dec", value: 700 },
-  ],
-  totalSales: 150000,
-  totalUnits: 4200,
-};
+ChartJS.register(ArcElement, Tooltip, Legend, BarElement, CategoryScale, LinearScale);
 
 const Overview = () => {
-  const { mode } = useSelector((state) => state.global); // Access theme mode
-  const [view, setView] = useState("sales");
+  const { mode, token } = useAppContext();
+  const [data, setData] = useState({ sales: [], total: 0 });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [dateRange, setDateRange] = useState([subDays(new Date(), 7), new Date()]);
+  const [startDate, endDate] = dateRange;
 
-  // Prepare chart data
-  const chartData = {
-    labels: mockData[view].map((item) => item.month),
+  const {
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    sort,
+    search,
+    searchInput,
+    setSearchInput,
+    handleSearch,
+    handleSort,
+  } = useTableParams();
+
+  // Fetch sales data
+  const fetchSales = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const params = {
+        page,
+        pageSize,
+        sort,
+        search,
+        ...(startDate && { startDate: format(startOfDay(startDate), 'yyyy-MM-dd') }),
+        ...(endDate && { endDate: format(endOfDay(endDate), 'yyyy-MM-dd') }),
+      };
+      const result = await api.getSales(params, token);
+      console.log('Reports response:', result);
+      setData({
+        sales: result.content || [],
+        total: result.totalElements || 0,
+      });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSales();
+  }, [page, pageSize, sort, search, startDate, endDate, token]);
+
+  // Calculate metrics
+  const totalSales = data.sales.reduce((sum, sale) => sum + sale.totalPrice, 0);
+  const totalItemsSold = data.sales.reduce((sum, sale) => sum + sale.items.reduce((s, item) => s + item.quantity, 0), 0);
+  const averageSale = data.sales.length > 0 ? totalSales / data.sales.length : 0;
+
+  // Sales by date for bar chart
+  const salesByDate = data.sales.reduce((acc, sale) => {
+    const date = sale.saleDate.split(' ')[0];
+    acc[date] = (acc[date] || 0) + sale.totalPrice;
+    return acc;
+  }, {});
+  const barData = {
+    labels: Object.keys(salesByDate),
     datasets: [
       {
-        label: view === "sales" ? "Sales (KES)" : "Units Sold",
-        data: mockData[view].map((item) => item.value),
-        borderColor: view === "sales" ? "rgb(75, 192, 192)" : "rgb(255, 99, 132)",
-        backgroundColor: view === "sales" ? "rgba(75, 192, 192, 0.2)" : "rgba(255, 99, 132, 0.2)",
-        fill: true,
-        tension: 0.4,
+        label: 'Sales by Date (KES)',
+        data: Object.values(salesByDate),
+        backgroundColor: '#14B8A6',
+        borderColor: '#0D9488',
+        borderWidth: 1,
       },
     ],
   };
 
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: "top",
-        labels: {
-          color: mode === "dark" ? "#ffffff" : "#000000",
-        },
+  // Sales by payment method for pie chart
+  const salesByPayment = data.sales.reduce((acc, sale) => {
+    const method = sale.paymentMethod;
+    acc[method] = (acc[method] || 0) + sale.totalPrice;
+    return acc;
+  }, {});
+  const pieData = {
+    labels: Object.keys(salesByPayment),
+    datasets: [
+      {
+        data: Object.values(salesByPayment),
+        backgroundColor: ['#2563EB', '#14B8A6', '#FBBF24', '#EF4444'],
+        borderColor: '#FFFFFF',
+        borderWidth: 2,
       },
-      title: {
-        display: true,
-        text: view === "sales" ? "Monthly Sales (KES)" : "Monthly Units Sold",
-        color: mode === "dark" ? "#ffffff" : "#000000",
-      },
-    },
-    scales: {
-      x: {
-        ticks: {
-          color: mode === "dark" ? "#ffffff" : "#000000",
-        },
-        grid: {
-          color: mode === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)",
-        },
-      },
-      y: {
-        ticks: {
-          color: mode === "dark" ? "#ffffff" : "#000000",
-        },
-        grid: {
-          color: mode === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)",
-        },
-      },
-    },
+    ],
   };
 
+  // Top 5 customers
+  const salesByCustomer = data.sales.reduce((acc, sale) => {
+    const customer = sale.customer?.name || 'Unknown';
+    acc[customer] = (acc[customer] || 0) + sale.totalPrice;
+    return acc;
+  }, {});
+  const topCustomers = Object.entries(salesByCustomer)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+  const customerBarData = {
+    labels: topCustomers.map(([name]) => name),
+    datasets: [
+      {
+        label: 'Top Customers (KES)',
+        data: topCustomers.map(([, amount]) => amount),
+        backgroundColor: '#2563EB',
+        borderColor: '#1D4ED8',
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  // Table columns
+  const columns = [
+    { field: 'id', headerName: 'ID', sortable: true },
+    {
+      field: 'saleDate',
+      headerName: 'Sale Date',
+      sortable: true,
+      render: (value) => new Date(value).toLocaleString(),
+    },
+    {
+      field: 'subtotalPrice',
+      headerName: 'Subtotal Price',
+      sortable: true,
+      render: (value) => `${value.toFixed(2)} KES`,
+    },
+    {
+      field: 'discountAmount',
+      headerName: 'Discount Amount',
+      sortable: true,
+      render: (value) => `${value.toFixed(2)} KES`,
+    },
+    {
+      field: 'taxAmount',
+      headerName: 'Tax Amount',
+      sortable: true,
+      render: (value) => `${value.toFixed(2)} KES`,
+    },
+    {
+      field: 'totalPrice',
+      headerName: 'Total Price',
+      sortable: true,
+      render: (value) => `${value.toFixed(2)} KES`,
+    },
+    {
+      field: 'customer.name',
+      headerName: 'Customer',
+      sortable: true,
+      render: (_, row) => row.customer?.name || 'N/A',
+    },
+    {
+      field: 'paymentMethod',
+      headerName: 'Payment Method',
+      sortable: true,
+    },
+  ];
+
   return (
-    <div className={`p-6 min-h-screen ${mode === "dark" ? "dark" : ""} bg-gray-100 dark:bg-gray-900`}>
+    <div className={`p-6 min-h-screen ${mode === 'dark' ? 'bg-gray-900 text-gray-100' : 'bg-gray-100 text-gray-900'}`}>
       <div className="max-w-7xl mx-auto">
-        <DashboardHeader  />
-
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-              Total Sales
-            </h3>
-            <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {mockData.totalSales.toLocaleString()} KES
-            </p>
+        <Header title="Sales Reports" subtitle="Analytical insights for your POS system" />
+        
+        {/* Error Message */}
+        {error && (
+          <div
+            role="alert"
+            className={`mb-6 p-4 rounded-lg border ${mode === 'dark' ? 'bg-red-900 border-red-700 text-red-100' : 'bg-red-100 border-red-400 text-red-800'}`}
+          >
+            <span className="font-semibold">Error:</span> {error}
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-              Total Units Sold
-            </h3>
-            <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {mockData.totalUnits.toLocaleString()}
-            </p>
-          </div>
-        </div>
+        )}
 
-        {/* View Selector and Chart */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-              Sales Trend
-            </h3>
-            <select
-              value={view}
-              onChange={(e) => setView(e.target.value)}
-              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        {/* Filters */}
+        <div className="mb-6 flex flex-col md:flex-row gap-4 items-start md:items-center">
+          <div className="w-full md:w-auto">
+            <label
+              htmlFor="dateRange"
+              className={`block mb-2 font-medium ${mode === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}
             >
-              <option value="sales">Sales</option>
-              <option value="units">Units</option>
-            </select>
+              Date Range
+            </label>
+            <DatePicker
+              id="dateRange"
+              selectsRange
+              startDate={startDate}
+              endDate={endDate}
+              onChange={(update) => setDateRange(update)}
+              className={`w-full md:w-64 px-4 py-2 rounded-lg border focus:ring-2 focus:ring-blue-500 ${
+                mode === 'dark' ? 'bg-gray-800 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-900'
+              }`}
+              placeholderText="Select date range"
+              aria-label="Select date range for sales report"
+            />
           </div>
-          <div className="h-[500px]">
-            <Line data={chartData} options={chartOptions} />
+
+        </div>
+
+        {/* Metrics */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+          <div
+            className={`p-6 rounded-lg shadow-lg ${
+              mode === 'dark' ? 'bg-gray-800' : 'bg-white'
+            } hover:shadow-xl transition-shadow`}
+          >
+            <h3 className="text-lg font-semibold mb-2">Total Sales</h3>
+            <p className="text-2xl font-bold text-blue-600">{totalSales.toFixed(2)} KES</p>
+          </div>
+          <div
+            className={`p-6 rounded-lg shadow-lg ${
+              mode === 'dark' ? 'bg-gray-800' : 'bg-white'
+            } hover:shadow-xl transition-shadow`}
+          >
+            <h3 className="text-lg font-semibold mb-2">Total Items Sold</h3>
+            <p className="text-2xl font-bold text-blue-600">{totalItemsSold}</p>
+          </div>
+          <div
+            className={`p-6 rounded-lg shadow-lg ${
+              mode === 'dark' ? 'bg-gray-800' : 'bg-white'
+            } hover:shadow-xl transition-shadow`}
+          >
+            <h3 className="text-lg font-semibold mb-2">Average Sale</h3>
+            <p className="text-2xl font-bold text-blue-600">{averageSale.toFixed(2)} KES</p>
           </div>
         </div>
+
+        {/* Charts */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div
+            className={`p-6 rounded-lg shadow-lg ${
+              mode === 'dark' ? 'bg-gray-800' : 'bg-white'
+            }`}
+          >
+            <h3 className="text-lg font-semibold mb-4">Sales by Date</h3>
+            <div className="h-64">
+              <Bar
+                data={barData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: { display: true, position: 'top' },
+                    tooltip: { backgroundColor: mode === 'dark' ? '#1F2A44' : '#FFFFFF' },
+                  },
+                  scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Amount (KES)' } },
+                    x: { title: { display: true, text: 'Date' } },
+                  },
+                }}
+                aria-label="Bar chart showing sales by date"
+              />
+            </div>
+          </div>
+          <div
+            className={`p-6 rounded-lg shadow-lg ${
+              mode === 'dark' ? 'bg-gray-800' : 'bg-white'
+            }`}
+          >
+            <h3 className="text-lg font-semibold mb-4">Sales by Payment Method</h3>
+            <div className="h-64">
+              <Pie
+                data={pieData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: { display: true, position: 'right' },
+                    tooltip: { backgroundColor: mode === 'dark' ? '#1F2A44' : '#FFFFFF' },
+                  },
+                }}
+                aria-label="Pie chart showing sales distribution by payment method"
+              />
+            </div>
+          </div>
+          <div
+            className={`p-6 rounded-lg shadow-lg ${
+              mode === 'dark' ? 'bg-gray-800' : 'bg-white'
+            }`}
+          >
+            <h3 className="text-lg font-semibold mb-4">Top 5 Customers</h3>
+            <div className="h-64">
+              <Bar
+                data={customerBarData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: { display: true, position: 'top' },
+                    tooltip: { backgroundColor: mode === 'dark' ? '#1F2A44' : '#FFFFFF' },
+                  },
+                  scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Amount (KES)' } },
+                    x: { title: { display: true, text: 'Customer' } },
+                  },
+                }}
+                aria-label="Bar chart showing top 5 customers by purchase amount"
+              />
+            </div>
+          </div>
+        </div>
+
+
       </div>
     </div>
   );

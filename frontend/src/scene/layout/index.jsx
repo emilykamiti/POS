@@ -3,20 +3,20 @@ import { Outlet } from "react-router-dom";
 import Navbar from "../../components/NavBar";
 import Sidebar from "../../components/SideBar";
 
-const Layout = ({ userId }) => { // Accept userId as a prop
+const Layout = ({ userId }) => {
   const isNonMobile = window.matchMedia("(min-width: 600px)").matches;
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(isNonMobile);
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!userId) return; // Skip fetching if userId is null
+    if (!userId) return;
 
     const fetchUserData = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(`/api/users/${userId}`); // Adjust the API endpoint
+        const response = await fetch(`/api/users/${userId}`);
         if (!response.ok) {
           throw new Error("Failed to fetch user data");
         }
@@ -33,24 +33,24 @@ const Layout = ({ userId }) => { // Accept userId as a prop
     fetchUserData();
   }, [userId]);
 
-  console.log("data", data);
-
   return (
     <div className="flex flex-col w-full h-screen md:flex-row">
       <Sidebar
         user={data || {}}
         isNonMobile={isNonMobile}
-        drawerWidth="250px"
+        drawerWidth="200px"
         isSidebarOpen={isSidebarOpen}
         setIsSidebarOpen={setIsSidebarOpen}
       />
-      <div className="flex-1 flex flex-col">
-        <Navbar
-          user={data || {}}
-          isSidebarOpen={isSidebarOpen}
-          setIsSidebarOpen={setIsSidebarOpen}
-        />
-        <div className="flex-1 p-2 overflow-auto mt-16 md:mt-0">
+      <div
+        className="flex-1 flex flex-col transition-all duration-300"
+        style={{
+          marginLeft: isSidebarOpen && isNonMobile ? "250px" : "0",
+          width: isSidebarOpen && isNonMobile ? "calc(100% - 250px)" : "100%"
+        }}
+      >
+
+        <div className="flex-1 p-4 md:p-10 overflow-auto">
           {isLoading ? <p>Loading...</p> : <Outlet />}
         </div>
       </div>

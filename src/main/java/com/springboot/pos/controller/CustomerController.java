@@ -20,13 +20,13 @@ public class CustomerController {
         this.customerService = customerService;
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+
     @PostMapping
     public ResponseEntity<CustomerDto> createCustomers(@Valid @RequestBody CustomerDto customerDto) {
         return new ResponseEntity<>(customerService.createCustomers(customerDto), HttpStatus.CREATED);
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+
     @GetMapping
     public PagedResponse<CustomerDto> getAllCustomers(
             @RequestParam(value = "pageNo", defaultValue = AppConstants.DEFAULT_PAGE_NUMBER, required = false) int pageNo,
@@ -38,7 +38,7 @@ public class CustomerController {
 
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+
     @GetMapping("/{id}")
     public ResponseEntity<CustomerDto> getCustomerById(@PathVariable(name = "id") long id) {
         return ResponseEntity.ok(customerService.getCustomerById(id));

@@ -1,29 +1,40 @@
 package com.springboot.pos.service.impl;
-
+import com.springboot.pos.exception.ResourceNotFoundException;
 import com.springboot.pos.model.Supplier;
+import com.springboot.pos.payload.SupplierDto;
+import lombok.Builder;
 import com.springboot.pos.model.Transaction;
 import com.springboot.pos.payload.PagedResponse;
-import com.springboot.pos.payload.SupplierDto;
 import com.springboot.pos.payload.TransactionDto;
-import com.springboot.pos.repository.SupplierRepository;
 import com.springboot.pos.repository.TransactionRepository;
 import com.springboot.pos.service.TransactionService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
+@Transactional(readOnly = true)
 public class TransactionServiceImpl implements TransactionService {
-    private TransactionRepository transactionRepository;
-    private ModelMapper mapper;
 
+    private final TransactionRepository transactionRepository;
+    private final ModelMapper mapper;
 
+    public TransactionServiceImpl(TransactionRepository transactionRepository, ModelMapper mapper) {
+        this.transactionRepository = transactionRepository;
+        this.mapper = mapper;
+    }
+
+    @Override
     public PagedResponse<TransactionDto> getAllTransactions(int pageNo, int pageSize, String sortBy, String sortDir) {
         Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name()) ?
                 Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
@@ -47,7 +58,6 @@ public class TransactionServiceImpl implements TransactionService {
         return productresponse;
     }
 
-
     private TransactionDto mapToDTO(Transaction transaction) {
         TransactionDto transactionDto = mapper.map(transaction, TransactionDto.class);
         return transactionDto;
@@ -57,4 +67,5 @@ public class TransactionServiceImpl implements TransactionService {
         Transaction transaction = mapper.map(transactionDto, Transaction.class);
         return transaction;
     }
+
 }

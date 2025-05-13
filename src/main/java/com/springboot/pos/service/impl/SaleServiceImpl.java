@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -265,7 +266,106 @@ public class SaleServiceImpl implements SaleService {
         return mapToSaleResponseDto(sale);
     }
 
-// add report in this class -check commit -9/5/25
+    @Override
+    public SalesReportDto getSalesReport(int pageNo, int pageSize, String sortBy, String sortDir, String search, LocalDate startDate, LocalDate endDate) {
+
+            logger.info("Generating sales report for period: {} to {}", startDate, endDate);
+
+            Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name())
+                    ? Sort.by(sortBy).ascending()
+                    : Sort.by(sortBy).descending();
+            Pageable pageable = PageRequest.of(pageNo, pageSize, sort);
+
+            // Adjust dates to cover full days
+            LocalDateTime startDateTime = startDate != null ? startDate.atStartOfDay() : null;
+            LocalDateTime endDateTime = endDate != null ? endDate.atTime(23, 59, 59) : null;
+
+            // Fetch sales with date range and search
+            Page<Sale> salesPage;
+            if (startDateTime != null && endDateTime != null) {
+                salesPage = saleRepository.findBySaleDateBetweenAndCustomerNameContainingIgnoreCase(
+                        startDateTime, endDateTime, search, pageable);
+            } else if (startDateTime != null) {
+                salesPage = saleRepository.findBySaleDateAfterAndCustomerNameContainingIgnoreCase(
+                        startDateTime, search, pageable);
+            } else if (endDateTime != null) {
+                salesPage = saleRepository.findBySaleDateBeforeAndCustomerNameContainingIgnoreCase(
+                        endDateTime, search, pageable);
+            } else {
+                salesPage = search.isEmpty()
+                        ? saleRepository.findAll(pageable)
+                        : saleRepository.findByCustomerNameContainingIgnoreCase(search, pageable);
+            }
+
+            // Calculate aggregates
+            List<Sale> sales = salesPage.getContent();
+            BigDecimal totalSales = sales.stream()
+                    .map(sale -> BigDecimal.valueOf(sale.getTotalAmount()))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            long totalItemsSold = sales.stream()
+                    .flatMap(sale -> sale.getSaleItems().stream())
+                    .mapToLong(SaleItem::getQuantity)
+                    .sum();
+            BigDecimal averageSale = sales.isEmpty()
+                    ? BigDecimal.ZERO
+                    : totalSales.divide(BigDecimal.valueOf(sales.size()), 2, RoundingMode.HALF_UP);
+
+            // Group by date
+            Map<String, BigDecimal> salesByDate = sales.stream()
+                    .collect(Collectors.groupingBy(
+                            sale -> sale.getSaleDate().toLocalDate().toString(),
+                            Collectors.reducing(
+                                    BigDecimal.ZERO,
+                                    sale -> BigDecimal.valueOf(sale.getTotalAmount()),
+                                    BigDecimal::add
+                            )
+                    ));
+
+            // Group by payment method
+            Map<String, BigDecimal> salesByPayment = sales.stream()
+                    .collect(Collectors.groupingBy(
+                            Sale::getPaymentMethod,
+                            Collectors.reducing(
+                                    BigDecimal.ZERO,
+                                    sale -> BigDecimal.valueOf(sale.getTotalAmount()),
+                                    BigDecimal::add
+                            )
+                    ));
+
+            // Group by customer
+            Map<String, BigDecimal> salesByCustomer = sales.stream()
+                    .filter(sale -> sale.getCustomer() != null)
+                    .collect(Collectors.groupingBy(
+                            sale -> sale.getCustomer().getName(),
+                            Collectors.reducing(
+                                    BigDecimal.ZERO,
+                                    sale -> BigDecimal.valueOf(sale.getTotalAmount()),
+                                    BigDecimal::add
+                            )
+                    ));
+
+            // Map sales to DTOs
+            List<SaleResponseDto> saleDtos = sales.stream()
+                    .map(this::mapToSaleResponseDto)
+                    .collect(Collectors.toList());
+
+            // Build response
+            SalesReportDto report = new SalesReportDto();
+            report.setSales(saleDtos);
+            report.setTotalSales(totalSales);
+            report.setTotalItemsSold(totalItemsSold);
+            report.setAverageSale(averageSale);
+            report.setSalesByDate(salesByDate);
+            report.setSalesByPaymentMethod(salesByPayment);
+            report.setSalesByCustomer(salesByCustomer);
+            report.setPageNo(salesPage.getNumber());
+            report.setPageSize(salesPage.getSize());
+            report.setTotalElements(salesPage.getTotalElements());
+            report.setTotalPages(salesPage.getTotalPages());
+            report.setLast(salesPage.isLast());
+
+            return report;
+        }
 
     private BigDecimal calculateDiscount(SaleRequestDto saleRequest, BigDecimal subtotal) {
         if (saleRequest.getDiscountPercentage() == null || saleRequest.getDiscountPercentage() <= 0) {

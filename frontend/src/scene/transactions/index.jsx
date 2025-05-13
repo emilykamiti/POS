@@ -4,10 +4,18 @@ import Header from '../../components/Header';
 import DataTable from '../../components/DataTable';
 import api from '../../state/api'; // Import the fetch-based API client
 import useTableParams from '../../hooks/useTableParams';
+import { useAppContext } from '../../context/AppContext';
 
 const Transactions = () => {
-  // Local state for theme mode (replacing useSelector)
-  const [mode, setMode] = useState('light');
+   const { mode, toggleMode, token } = useAppContext();
+   const [data, setData] = useState({ products: [], total: 0 });
+   const [isLoading, setIsLoading] = useState(false);
+   const [error, setError] = useState(null);
+   const [openForm, setOpenForm] = useState(false);
+   const [currentProduct, setCurrentProduct] = useState(null);
+   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+   const [productToDelete, setProductToDelete] = useState(null);
+   const [successMessage, setSuccessMessage] = useState(null);
 
   // Table parameters from custom hook
   const {
@@ -23,26 +31,17 @@ const Transactions = () => {
     handleSort,
   } = useTableParams();
 
-  // State for API data
-  const [data, setData] = useState({ transactions: [], total: 0 });
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+
 
   // Fetch transactions when parameters change
-  useEffect(() => {
     const fetchTransactions = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        const result = await api.getTransactions({
-          page,
-          pageSize,
-          sort,
-          search,
-        });
+        const result = await api.getTransactions({ page, pageSize, sort, search }, token);
         setData({
-          transactions: result.transactions || [],
-          total: result.total || 0,
+          transactions: result.content || [],
+          total: result.totalElements || 0,
         });
       } catch (err) {
         setError(err.message);
@@ -50,19 +49,15 @@ const Transactions = () => {
         setIsLoading(false);
       }
     };
-    fetchTransactions();
-  }, [page, pageSize, sort, search]);
 
-  // Toggle theme mode (optional, for demo purposes)
-  const toggleMode = () => {
-    setMode((prev) => (prev === 'light' ? 'dark' : 'light'));
-  };
+    useEffect(() => {
+      fetchTransactions();
+    }, [page, pageSize, sort, search, token]);
 
   // Table columns (same as before)
   const columns = [
     { field: 'id', headerName: 'ID', sortable: true },
     { field: 'checkoutRequestId', headerName: 'Checkout Request ID', sortable: true },
-    { field: 'transactionId', headerName: 'Transaction ID', sortable: true },
     { field: 'phoneNumber', headerName: 'Phone Number', sortable: true },
     {
       field: 'amount',
@@ -88,50 +83,17 @@ const Transactions = () => {
         </span>
       ),
     },
-    {
-      field: 'createdAt',
-      headerName: 'Created At',
-      sortable: true,
-      render: (value) => new Date(value).toLocaleString(),
-    },
-    {
-      field: 'sale',
-      headerName: 'Sale ID',
-      render: (value) => value?.id || 'N/A',
-    },
+
   ];
 
   return (
     <div
-      className={`p-6 min-h-screen ${
-        mode === 'dark' ? 'bg-gray-900' : 'bg-gray-100'
-      }`}
+      className={`p-6 min-h-screen `}
     >
       <div className="max-w-7xl mx-auto">
         <Header title="TRANSACTIONS" subtitle="List of all M-Pesa transactions" />
-        {/* Optional: Button to toggle theme */}
-        <button
-          onClick={toggleMode}
-          className="mb-4 px-4 py-2 bg-blue-600 text-white rounded"
-        >
-          Toggle {mode === 'light' ? 'Dark' : 'Light'} Mode
-        </button>
-        {/* Search */}
-        <div className="flex items-center space-x-4 mb-6">
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search transactions..."
-            className="px-4 py-2 rounded border w-full max-w-md"
-          />
-          <button
-            onClick={handleSearch}
-            className="px-4 py-2 bg-blue-600 text-white rounded"
-          >
-            Search
-          </button>
-        </div>
+
+
         {/* Data Table */}
         <DataTable
           columns={columns}

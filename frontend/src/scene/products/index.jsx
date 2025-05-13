@@ -5,9 +5,19 @@ import DataTable from '../../components/DataTable';
 import api from '../../state/api';
 import useTableParams from '../../hooks/useTableParams';
 import { useAppContext } from '../../context/AppContext';
+import ProductForm from './ProductForm';
+import ConfirmationDialog from '../../components/ConfirmationDialog';
 
 const Products = () => {
-  const { mode, toggleMode } = useAppContext(); // Use context for theme
+  const { mode, toggleMode, token } = useAppContext();
+  const [data, setData] = useState({ products: [], total: 0 });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [openForm, setOpenForm] = useState(false);
+  const [currentProduct, setCurrentProduct] = useState(null);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [productToDelete, setProductToDelete] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
 
   const {
     page,
@@ -22,32 +32,74 @@ const Products = () => {
     handleSort,
   } = useTableParams();
 
-  const [data, setData] = useState({ products: [], total: 0 });
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+  // Fetch products
+  const fetchProducts = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await api.getProducts({ page, pageSize, sort, search }, token);
+      setData({
+        products: result.content || [],
+        total: result.totalElements || 0,
+      });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchProducts = async () => {
+    fetchProducts();
+  }, [page, pageSize, sort, search, token]);
+
+  // Handle create/update product
+  const handleSubmit = async (productData) => {
+    try {
       setIsLoading(true);
       setError(null);
-      try {
-        const result = await api.getProducts({ page, pageSize, sort, search });
-        setData({
-          products: result.products || [],
-          total: result.total || 0,
-        });
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
+      if (currentProduct) {
+        await api.updateProduct(currentProduct.id, productData, token);
+        setSuccessMessage('Product updated successfully');
+      } else {
+        await api.createProduct(productData, token);
+        setSuccessMessage('Product created successfully');
       }
-    };
-    fetchProducts();
-  }, [page, pageSize, sort, search]);
+      setOpenForm(false);
+      setCurrentProduct(null);
+      fetchProducts();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(null), 3000);
+    }
+  };
+
+  // Handle delete product
+  const handleDelete = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      await api.deleteProduct(productToDelete.id, token);
+      setSuccessMessage('Product deleted successfully');
+      fetchProducts();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+      setOpenDeleteDialog(false);
+      setProductToDelete(null);
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(null), 3000);
+    }
+  };
 
   const columns = [
     { field: 'id', headerName: 'ID', sortable: true },
     { field: 'name', headerName: 'Name', sortable: true },
+     { field: 'category', headerName: 'Category', sortable: true },
     {
       field: 'price',
       headerName: 'Price',
@@ -59,70 +111,74 @@ const Products = () => {
       headerName: 'Status',
       sortable: true,
       render: (value) => (
-        <span
-          className={`px-2 py-1 rounded-full text-xs font-semibold ${
-            value === 'AVAILABLE'
-              ? 'bg-green-100 text-green-800 dark:bg-green-700 dark:text-green-100'
-              : 'bg-red-100 text-red-800 dark:bg-red-700 dark:text-red-100'
-          }`}
-        >
+        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+          value === 'AVAILABLE'
+            ? 'bg-green-100 text-green-800 dark:bg-green-700 dark:text-green-100'
+            : 'bg-red-100 text-red-800 dark:bg-red-700 dark:text-red-100'
+        }`}>
           {value}
         </span>
       ),
     },
     {
-      field: 'stock',
-      headerName: 'Stock',
-      sortable: true,
-      render: (value, row) => `${value} (Reserved: ${row.reservedStock || 0})`,
-    },
-    {
-      field: 'category',
-      headerName: 'Category',
-      render: (value) => value?.name || 'N/A',
-    },
-    {
-      field: 'supplier',
-      headerName: 'Supplier',
-      render: (value) => value?.name || 'N/A',
-    },
-    {
-      field: 'createdAt',
-      headerName: 'Created At',
-      sortable: true,
-      render: (value) => new Date(value).toLocaleDateString(),
+      field: 'actions',
+      headerName: 'Actions',
+      render: (_, row) => (
+        <div className="flex space-x-2">
+          <button
+            onClick={() => {
+              setCurrentProduct(row);
+              setOpenForm(true);
+            }}
+            className="px-2 py-1 bg-blue-600 text-white rounded text-sm dark:bg-blue-500"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => {
+              setProductToDelete(row);
+              setOpenDeleteDialog(true);
+            }}
+            className="px-2 py-1 bg-red-600 text-white rounded text-sm dark:bg-red-500"
+          >
+            Delete
+          </button>
+        </div>
+      ),
     },
   ];
 
   return (
-    <div
-      className={`p-6 min-h-screen ${
-        mode === 'dark' ? 'bg-gray-900' : 'bg-gray-100'
-      }`}
-    >
+    <div className={`p-6 min-h-screen`}>
       <div className="max-w-7xl mx-auto">
-        <Header title="PRODUCTS" subtitle="View your inventory of products" />
-        <button
-          onClick={toggleMode}
-          className="mb-4 px-4 py-2 bg-blue-600 text-white rounded dark:bg-blue-500 dark:hover:bg-blue-600"
-        >
-          Toggle {mode === 'light' ? 'Dark' : 'Light'} Mode
-        </button>
+        <Header title="PRODUCTS" subtitle="Manage your inventory of products" />
+
+        {/* Success/Error Messages */}
+        {successMessage && (
+          <div className={`mb-4 p-3 rounded ${mode === 'dark' ? 'bg-green-800 text-green-100' : 'bg-green-100 text-green-800'}`}>
+            {successMessage}
+          </div>
+        )}
+        {error && (
+          <div className={`mb-4 p-3 rounded ${mode === 'dark' ? 'bg-red-800 text-red-100' : 'bg-red-100 text-red-800'}`}>
+            Error: {error}
+          </div>
+        )}
+
         <div className="flex items-center space-x-4 mb-6">
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search products..."
-            className="px-4 py-2 rounded border w-full max-w-md dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200"
-          />
-          <button
-            onClick={handleSearch}
-            className="px-4 py-2 bg-blue-600 text-white rounded dark:bg-blue-500 dark:hover:bg-blue-600"
-          >
-            Search
-          </button>
+
+
+            <button
+             onClick={() => {
+               setCurrentProduct(null);
+               setOpenForm(true);
+             }}
+             className="px-4 py-2 bg-gray-300 text-white rounded dark:bg-gray-500"
+           >
+             Add New Product
+           </button>
         </div>
+
         <DataTable
           columns={columns}
           data={data.products}
@@ -135,6 +191,28 @@ const Products = () => {
           setPageSize={setPageSize}
           sort={sort}
           handleSort={handleSort}
+        />
+
+        {/* Product Form Modal */}
+        {openForm && (
+          <ProductForm
+            product={currentProduct}
+            onSubmit={handleSubmit}
+            onClose={() => {
+              setOpenForm(false);
+              setCurrentProduct(null);
+            }}
+            mode={mode}
+          />
+        )}
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmationDialog
+          open={openDeleteDialog}
+          onClose={() => setOpenDeleteDialog(false)}
+          onConfirm={handleDelete}
+          title="Delete Product"
+          message={`Are you sure you want to delete "${productToDelete?.name}"?`}
         />
       </div>
     </div>
