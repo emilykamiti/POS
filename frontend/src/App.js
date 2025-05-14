@@ -9,7 +9,9 @@ import Customers from './scene/customers';
 import Transactions from './scene/transactions';
 import Login from './scene/login';
 import SignUp from './scene/signup';
+import Home from './scene/home';
 import Overview from './scene/overview';
+import VerifyEmail from './scene/verifyemail'
 import Sales from './scene/sales';
 
 function App() {
@@ -19,14 +21,16 @@ function App() {
     <div className={`min-h-screen ${mode === 'dark' ? 'dark' : ''}`}>
       <BrowserRouter>
         <Routes>
+        <Route path="/home" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+         <Route path="/signup" element={<SignUp />} />
+         <Route path="/verifyemail" element={<VerifyEmail />} />
           <Route element={<Layout />}>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<Navigate to="/home" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/products" element={<Products />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/transactions" element={<Transactions />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<SignUp />} />
             <Route path="/overview" element={<Overview />} />
             <Route path="/sales" element={<Sales />} />
           </Route>
