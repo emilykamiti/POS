@@ -35,8 +35,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String jwt = getJwtFromRequest(request);
 
         if (jwt != null) {
+            if (!jwtUtil.isValidTokenFormat(jwt)) {
+                logger.error("Invalid JWT format for request: {}", request.getRequestURI());
+                SecurityContextHolder.clearContext();
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid JWT format");
+                return;
+            }
+
             try {
                 String username = jwtUtil.extractUsername(jwt);
+
                 if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                     UserDetails userDetails = userDetailsService.loadUserByUsername(username);
                     if (jwtUtil.validateToken(jwt, userDetails)) {
@@ -44,12 +52,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                 userDetails, null, userDetails.getAuthorities());
                         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                         SecurityContextHolder.getContext().setAuthentication(authentication);
+                    } else {
+                        logger.error("JWT validation failed for request: {}", request.getRequestURI());
+                        response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid JWT token");
+                        return;
                     }
                 }
             } catch (Exception e) {
                 logger.error("JWT validation failed for request: {} - Error: {}", request.getRequestURI(), e.getMessage());
-                // Clear context to avoid partial authentication
                 SecurityContextHolder.clearContext();
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "JWT Error: " + e.getMessage());
+                return;
             }
         }
 

@@ -1,59 +1,63 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
+import React, { useState, useEffect, useContext } from 'react';
+import { Navigate } from 'react-router-dom';
+import axios from 'axios';
+import { AuthContext } from '../../utils/AuthContext';
 
-const baseUrl = process.env.REACT_APP_API_URL || "http://localhost:8080";
+const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
 const api = {
-  getCategories: async ({ page, pageSize, sort, search }, token) => {
+  getCategories: async ({ page, pageSize, sort, search }) => {
     const response = await axios.get(`${baseUrl}/api/categories`, {
       params: { page, size: pageSize, sort, search },
-      headers: { Authorization: `Bearer ${token}` },
     });
     return response.data;
   },
-  getProducts: async ({ page, pageSize, sort, search }, token) => {
+  getProducts: async ({ page, pageSize, sort, search }) => {
     const response = await axios.get(`${baseUrl}/api/products`, {
       params: { page, size: pageSize, sort, search },
-      headers: { Authorization: `Bearer ${token}` },
     });
     return response.data;
   },
-  createSale: async (saleData, token) => {
-    const response = await axios.post(`${baseUrl}/api/sales`, saleData, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+  createSale: async (saleData) => {
+    const response = await axios.post(`${baseUrl}/api/sales`, saleData);
     return response.data;
   },
 };
 
 const Dashboard = () => {
+  const { isAuthenticated } = useContext(AuthContext);
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
-  const [activeCategory, setActiveCategory] = useState("All");
+  const [activeCategory, setActiveCategory] = useState('All');
   const [paymentMethod, setPaymentMethod] = useState(null);
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [amountReceived, setAmountReceived] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [amountReceived, setAmountReceived] = useState('');
   const [change, setChange] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState("");
+  const [success, setSuccess] = useState('');
   const [discountPercentage, setDiscountPercentage] = useState(0);
-  const [taxPercentage, setTaxPercentage] = useState(16); // Default 16% tax
+  const [taxPercentage, setTaxPercentage] = useState(16);
 
-  const token = localStorage.getItem("token") || "";
   const [page] = useState(0);
   const [pageSize] = useState(100);
-  const [sort] = useState("name,asc");
-  const [search] = useState("");
+  const [sort] = useState('name,asc');
+  const [search] = useState('');
 
   const fetchData = async () => {
     setIsLoading(true);
     setError(null);
     try {
       const [categoryResult, productResult] = await Promise.all([
-        api.getCategories({ page, pageSize, sort, search }, token).catch(() => ({ content: [] })),
-        api.getProducts({ page, pageSize, sort, search }, token).catch(() => ({ content: [] })),
+        api.getCategories({ page, pageSize, sort, search }).catch((err) => {
+          console.error('Categories fetch error:', err.response?.data || err);
+          throw err;
+        }),
+        api.getProducts({ page, pageSize, sort, search }).catch((err) => {
+          console.error('Products fetch error:', err.response?.data || err);
+          throw err;
+        }),
       ]);
 
       const uniqueCategories = [
@@ -71,28 +75,36 @@ const Dashboard = () => {
           id: product.id,
           name: product.name,
           price: product.price || 0,
-          category: product.category?.name || "Uncategorized",
-          image: product.image || "./assets/default.jpeg",
+          category: product.category?.name || 'Uncategorized',
+          image: product.image || './assets/default.jpeg',
         })) || [];
 
       setProducts(validProducts);
     } catch (err) {
-      setError("Failed to load data. Please check your connection.");
-      console.error("Fetch error:", err);
+      const errorMessage =
+        err.response?.status === 401
+          ? 'Unauthorized access. Please log in again.'
+          : err.response?.status === 403
+          ? 'You lack the required permissions (ROLE_ADMIN) to perform this action.'
+          : err.response?.data?.message || 'Failed to load data. Please try again.';
+      setError(errorMessage);
+      console.error('Fetch error:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (isAuthenticated) {
+      fetchData();
+    }
+  }, [isAuthenticated]);
 
-  const filteredProducts = activeCategory === "All"
-    ? products
-    : products.filter((product) => product.category === activeCategory);
+  const filteredProducts =
+    activeCategory === 'All'
+      ? products
+      : products.filter((product) => product.category === activeCategory);
 
-  // Calculate totals with discount and tax
   const subtotal = selectedItems.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
@@ -136,51 +148,59 @@ const Dashboard = () => {
 
   const handlePercentageChange = (type, delta) => {
     if (type === 'discount') {
-      setDiscountPercentage(prev => Math.max(0, Math.min(100, prev + delta)));
+      setDiscountPercentage((prev) => Math.max(0, Math.min(100, prev + delta)));
     } else {
-      setTaxPercentage(prev => Math.max(0, prev + delta));
+      setTaxPercentage((prev) => Math.max(0, prev + delta));
     }
   };
 
   const processPayment = async (paymentData) => {
     setIsLoading(true);
     setError(null);
-    setSuccess("");
+    setSuccess('');
 
     try {
       const saleRequest = {
         items: selectedItems.map((item) => ({
           productId: item.id,
           quantity: item.quantity,
-          unitPrice: item.price,
         })),
         paymentMethod: paymentData.method,
-        ...(paymentData.method === "M-PESA" && { phoneNumber }),
-        currency: "KES",
+        ...(paymentData.method === 'M-PESA' && { phoneNumber }),
+        currency: 'KES',
         discountPercentage: discountPercentage / 100,
         taxPercentage: taxPercentage / 100,
-        subtotal: parseFloat(subtotal.toFixed(2)),
-        discountAmount: parseFloat(discountAmount.toFixed(2)),
-        taxAmount: parseFloat(taxAmount.toFixed(2)),
-        total: parseFloat(total),
       };
 
-      const response = await api.createSale(saleRequest, token);
+      const response = await api.createSale(saleRequest);
 
       if (response.id) {
-        setSuccess(`Payment successful! ${paymentData.method === "M-PESA" ?
-          `Transaction ID: ${response.transactionId}` : `Sale ID: ${response.id}`}`);
+        setSuccess(
+          `Payment successful! ${
+            paymentData.method === 'M-PESA'
+              ? `Transaction ID: ${response.transactionId || 'N/A'}`
+              : `Sale ID: ${response.id}`
+          }`
+        );
         setSelectedItems([]);
-        setPhoneNumber("");
-        setAmountReceived("");
+        setPhoneNumber('');
+        setAmountReceived('');
         setPaymentMethod(null);
         setDiscountPercentage(0);
       } else {
-        throw new Error(response.message || "Payment processing failed");
+        throw new Error(response.message || 'Payment processing failed');
       }
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "Failed to process payment");
-      console.error("Payment error:", err);
+      const errorMessage =
+        err.response?.status === 400
+          ? err.response?.data?.message || err.response?.data?.detail || 'Invalid sale request. Please check the payment method and items.'
+          : err.response?.status === 401
+          ? 'Unauthorized access. Please log in again.'
+          : err.response?.status === 403
+          ? 'You lack the required permissions (ROLE_ADMIN) to process sales.'
+          : err.response?.data?.message || 'Failed to process payment';
+      setError(errorMessage);
+      console.error('Payment error:', err.response?.data || err);
     } finally {
       setIsLoading(false);
     }
@@ -188,31 +208,35 @@ const Dashboard = () => {
 
   const handleMpesaPayment = () => {
     if (!phoneNumber) {
-      setError("Please enter a phone number for M-Pesa payment.");
+      setError('Please enter a phone number for M-PESA payment.');
       return;
     }
     if (!selectedItems.length) {
-      setError("No items selected for payment.");
+      setError('No items selected for payment.');
       return;
     }
-    processPayment({ method: "M-PESA" });
+    processPayment({ method: 'M-PESA' });
   };
 
-  const handleCashPayment = () => {
+  const handleVisaCardPayment = () => {
     const received = parseFloat(amountReceived) || 0;
     if (received < total) {
-      setError("Amount received is less than the total.");
+      setError('Amount received is less than the total.');
       return;
     }
     if (!selectedItems.length) {
-      setError("No items selected for payment.");
+      setError('No items selected for payment.');
       return;
     }
-    processPayment({ method: "CASH" });
+    processPayment({ method: 'VISA-CARD' });
   };
 
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
   return (
-    <div className="min-h-screen bg-gray-100 p-6 flex flex-col gap-6">
+    <div className="p-6 min-h-screen bg-gray-100 p-6 flex flex-col gap-6 box-border">
       {isLoading && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-4 rounded-lg shadow-lg">
@@ -234,14 +258,14 @@ const Dashboard = () => {
       )}
 
       <div className="bg-white rounded-full p-2 shadow-md flex items-center overflow-x-auto">
-        {["All", ...categories].map((category, index) => (
+        {['All', ...categories].map((category, index) => (
           <button
             key={`category-${index}`}
             onClick={() => setActiveCategory(category)}
             className={`px-4 py-2 rounded-full text-sm font-medium mx-1 transition-colors ${
               activeCategory === category
-                ? "bg-purple-600 text-white"
-                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
             disabled={isLoading}
           >
@@ -252,10 +276,12 @@ const Dashboard = () => {
 
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="flex-1 bg-white rounded-lg shadow p-4">
-          <h2 className="text-lg font-semibold mb-4">Menu</h2>
+          <h2 className="text-lg font-semibold mb-4 text-gray-900">Menu</h2>
           {filteredProducts.length === 0 && !isLoading ? (
             <p className="text-gray-500 text-center py-4">
-              {products.length === 0 ? "No products available" : "No products in this category"}
+              {products.length === 0
+                ? 'No products available'
+                : 'No products in this category'}
             </p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -271,12 +297,14 @@ const Dashboard = () => {
                       alt={item.name}
                       className="w-full h-32 object-cover rounded-t-lg"
                       onError={(e) => {
-                        e.target.src = "./assets/default.jpeg";
+                        e.target.src = './assets/default.jpeg';
                       }}
                     />
                     <div className="p-3">
-                      <p className="text-sm font-medium">{item.name}</p>
-                      <p className="text-purple-600 font-semibold">KES {item.price.toFixed(2)}</p>
+                      <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                      <p className="text-purple-600 font-semibold">
+                        KES {item.price.toFixed(2)}
+                      </p>
                       <div className="flex justify-between items-center mt-2">
                         <button
                           onClick={() => handleAddItem(item)}
@@ -294,7 +322,7 @@ const Dashboard = () => {
                             >
                               -
                             </button>
-                            <span>{itemInCart.quantity}</span>
+                            <span className="text-gray-900">{itemInCart.quantity}</span>
                             <button
                               onClick={() => handleQuantityChange(item.id, 1)}
                               className="text-purple-600 hover:text-purple-800 disabled:opacity-50"
@@ -314,18 +342,20 @@ const Dashboard = () => {
         </div>
 
         <div className="w-full lg:w-1/3 bg-white rounded-lg shadow p-4 flex flex-col">
-          <h2 className="text-lg font-semibold mb-4">Order Details</h2>
+          <h2 className="text-lg font-semibold mb-4 text-gray-900">Order Details</h2>
           <div className="flex-1 overflow-y-auto max-h-64">
             {selectedItems.length === 0 ? (
-              <p className="text-gray-500 text-sm text-center py-4">No items selected</p>
+              <p className="text-gray-500 text-sm text-center py-4">
+                No items selected
+              </p>
             ) : (
               selectedItems.map((item) => (
                 <div
                   key={`order-item-${item.id}`}
-                  className="flex justify-between items-center p-2 border-b"
+                  className="flex justify-between items-center p-2 border-b border-gray-200"
                 >
                   <div>
-                    <p className="text-sm font-medium">{item.name}</p>
+                    <p className="text-sm font-medium text-gray-900">{item.name}</p>
                     <p className="text-xs text-gray-600">
                       KES {item.price.toFixed(2)} × {item.quantity}
                     </p>
@@ -338,7 +368,7 @@ const Dashboard = () => {
                     >
                       -
                     </button>
-                    <span>{item.quantity}</span>
+                    <span className="text-gray-900">{item.quantity}</span>
                     <button
                       onClick={() => handleQuantityChange(item.id, 1)}
                       className="text-purple-600 hover:text-purple-800 disabled:opacity-50"
@@ -359,10 +389,9 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* Discount and Tax Controls */}
-          <div className="mt-4 border-t pt-4">
+          <div className="mt-4 border-t border-gray-200 pt-4">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-sm">Discount:</span>
+              <span className="text-sm text-gray-700">Discount:</span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handlePercentageChange('discount', -1)}
@@ -371,7 +400,7 @@ const Dashboard = () => {
                 >
                   -
                 </button>
-                <span>{discountPercentage}%</span>
+                <span className="text-gray-900">{discountPercentage}%</span>
                 <button
                   onClick={() => handlePercentageChange('discount', 1)}
                   className="px-2 py-1 bg-gray-200 rounded disabled:opacity-50"
@@ -383,7 +412,7 @@ const Dashboard = () => {
             </div>
 
             <div className="flex justify-between items-center mb-2">
-              <span className="text-sm">Tax:</span>
+              <span className="text-sm text-gray-700">Tax:</span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handlePercentageChange('tax', -1)}
@@ -392,7 +421,7 @@ const Dashboard = () => {
                 >
                   -
                 </button>
-                <span>{taxPercentage}%</span>
+                <span className="text-gray-900">{taxPercentage}%</span>
                 <button
                   onClick={() => handlePercentageChange('tax', 1)}
                   className="px-2 py-1 bg-gray-200 rounded disabled:opacity-50"
@@ -404,9 +433,8 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Order summary */}
-          <div className="mt-2 border-t pt-2">
-            <div className="flex justify-between text-sm">
+          <div className="mt-2 border-t border-gray-200 pt-2">
+            <div className="flex justify-between text-sm text-gray-700">
               <p>Subtotal</p>
               <p>KES {subtotal.toFixed(2)}</p>
             </div>
@@ -416,54 +444,53 @@ const Dashboard = () => {
                 <p>-KES {discountAmount.toFixed(2)}</p>
               </div>
             )}
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between text-sm text-gray-700">
               <p>Tax ({taxPercentage}%)</p>
               <p>KES {taxAmount.toFixed(2)}</p>
             </div>
-            <div className="flex justify-between font-semibold mt-2 pt-2 border-t">
+            <div className="flex justify-between font-semibold mt-2 pt-2 border-t border-gray-200 text-gray-900">
               <p>Total</p>
               <p>KES {total}</p>
             </div>
           </div>
 
-          {/* Payment methods */}
           <div className="mt-4">
-            <h3 className="text-md font-semibold mb-2">Payment Method</h3>
+            <h3 className="text-md font-semibold mb-2 text-gray-900">Payment Method</h3>
             <div className="flex gap-4 mb-4">
               <label className="flex items-center">
                 <input
                   type="radio"
                   name="paymentMethod"
-                  value="M-Pesa"
-                  checked={paymentMethod === "M-Pesa"}
-                  onChange={() => setPaymentMethod("M-Pesa")}
+                  value="M-PESA"
+                  checked={paymentMethod === 'M-PESA'}
+                  onChange={() => setPaymentMethod('M-PESA')}
                   className="mr-2"
                   disabled={isLoading || selectedItems.length === 0}
                 />
-                M-Pesa
+                <span className="text-gray-700">M-PESA</span>
               </label>
               <label className="flex items-center">
                 <input
                   type="radio"
                   name="paymentMethod"
-                  value="Cash"
-                  checked={paymentMethod === "Cash"}
-                  onChange={() => setPaymentMethod("Cash")}
+                  value="VISA-CARD"
+                  checked={paymentMethod === 'VISA-CARD'}
+                  onChange={() => setPaymentMethod('VISA-CARD')}
                   className="mr-2"
                   disabled={isLoading || selectedItems.length === 0}
                 />
-                Cash
+                <span className="text-gray-700">Cash/Card</span>
               </label>
             </div>
 
-            {paymentMethod === "M-Pesa" && (
+            {paymentMethod === 'M-PESA' && (
               <div className="mt-2">
                 <input
                   type="tel"
                   placeholder="Phone Number (e.g., 254712345678)"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded mb-2"
+                  className="w-full p-2 border border-gray-300 rounded mb-2 bg-white text-gray-900"
                   disabled={isLoading}
                 />
                 <button
@@ -475,26 +502,26 @@ const Dashboard = () => {
                     phoneNumber.length < 10
                   }
                 >
-                  {isLoading ? "Processing..." : "Initiate M-Pesa Payment"}
+                  {isLoading ? 'Processing...' : 'Initiate M-PESA Payment'}
                 </button>
               </div>
             )}
 
-            {paymentMethod === "Cash" && (
+            {paymentMethod === 'VISA-CARD' && (
               <div className="mt-2">
                 <input
                   type="number"
                   placeholder="Amount Received (KES)"
                   value={amountReceived}
                   onChange={(e) => setAmountReceived(e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded mb-2"
+                  className="w-full p-2 border border-gray-300 rounded mb-2 bg-white text-gray-900"
                   min="0"
                   step="0.01"
                   disabled={isLoading}
                 />
-                <p className="text-sm mb-2">Change: KES {change}</p>
+                <p className="text-sm mb-2 text-gray-700">Change: KES {change}</p>
                 <button
-                  onClick={handleCashPayment}
+                  onClick={handleVisaCardPayment}
                   className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
                   disabled={
                     isLoading ||
@@ -502,7 +529,7 @@ const Dashboard = () => {
                     parseFloat(amountReceived) < parseFloat(total)
                   }
                 >
-                  {isLoading ? "Processing..." : "Complete Cash Payment"}
+                  {isLoading ? 'Processing...' : 'Complete Payment'}
                 </button>
               </div>
             )}
@@ -513,4 +540,14 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard;
+// ProtectedRoute wrapper
+const ProtectedRoute = ({ children }) => {
+  const { isAuthenticated } = useContext(AuthContext);
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
+};
+
+export default () => (
+  <ProtectedRoute>
+    <Dashboard />
+  </ProtectedRoute>
+);

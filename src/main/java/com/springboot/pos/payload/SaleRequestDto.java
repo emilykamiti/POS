@@ -17,20 +17,15 @@ public class SaleRequestDto {
     @NotEmpty(message = "Sale items cannot be empty")
     private List<SaleItemRequestDto> items;
 
-    @Pattern(regexp = "M-PESA|VISA-CARD",
-            message = "Payment method must be either 'M-PESA' or 'VISA-CARD'")
+    @Pattern(regexp = "M-PESA|VISA-CARD|CASH",
+            message = "Payment method must be 'M-PESA', 'VISA-CARD', or 'CASH'")
     private String paymentMethod;
 
     private Long userId;
     private Long customerId;
     private String phoneNumber;
-    // Discount percentage for the entire sale (e.g., 10% = 0.10)
     private Double discountPercentage;
-
-    // Tax percentage (VAT/GST at 16% = 0.16)
     private Double taxPercentage;
-
-    //loyalty program
     private Integer useLoyaltyPoints;
     private String currency;
 }

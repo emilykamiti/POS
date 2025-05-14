@@ -54,30 +54,24 @@ const fetchWithAuth = async (
 const api = {
   // --- Customers ---
   getCustomers: (params, token) => fetchWithAuth('customers', params, token),
-  createCustomer: (data, token) =>
-    fetchWithAuth('customers', { method: 'POST', body: data }, token),
-  updateCustomer: (id, data, token) =>
-    fetchWithAuth(`customers/${id}`, { method: 'PUT', body: data }, token),
+  createCustomer: (data, token) => fetchWithAuth('customers', { method: 'POST', body: data }, token),
+  updateCustomer: (id, data, token) => fetchWithAuth(`customers/${id}`, { method: 'PUT', body: data }, token),
   deleteCustomer: (id, token) => fetchWithAuth(`customers/${id}`, { method: 'DELETE' }, token),
 
   // --- Products ---
   getProducts: (params, token) => fetchWithAuth('products', params, token),
-  createProduct: (data, token) =>
-    fetchWithAuth('products', { method: 'POST', body: data }, token),
-  updateProduct: (id, data, token) =>
-    fetchWithAuth(`products/${id}`, { method: 'PUT', body: data }, token),
+  createProduct: (data, token) => fetchWithAuth('products', { method: 'POST', body: data }, token),
+  updateProduct: (id, data, token) => fetchWithAuth(`products/${id}`, { method: 'PUT', body: data }, token),
   deleteProduct: (id, token) => fetchWithAuth(`products/${id}`, { method: 'DELETE' }, token),
 
   // --- Transactions ---
   getTransactions: (params, token) => fetchWithAuth('transactions', params, token),
-  createTransaction: (data, token) =>
-    fetchWithAuth('transactions', { method: 'POST', body: data }, token),
+  createTransaction: (data, token) => fetchWithAuth('transactions', { method: 'POST', body: data }, token),
   getTransaction: (id, token) => fetchWithAuth(`transactions/${id}`, {}, token),
 
   // --- Sales ---
   getSales: (params, token) => fetchWithAuth('sales', params, token),
-  createSale: (data, token) =>
-    fetchWithAuth('sales', { method: 'POST', body: data }, token),
+  createSale: (data, token) => fetchWithAuth('sales', { method: 'POST', body: data }, token),
   getSale: (id, token) => fetchWithAuth(`sales/${id}`, {}, token),
 
   // --- Sales Report ---
@@ -85,17 +79,13 @@ const api = {
 
   // --- Users ---
   getUsers: (params, token) => fetchWithAuth('users', params, token),
-  createUser: (data, token) =>
-    fetchWithAuth('users', { method: 'POST', body: data }, token),
-  updateUser: (id, data, token) =>
-    fetchWithAuth(`users/${id}`, { method: 'PUT', body: data }, token),
+  createUser: (data, token) => fetchWithAuth('users', { method: 'POST', body: data }, token),
+  updateUser: (id, data, token) => fetchWithAuth(`users/${id}`, { method: 'PUT', body: data }, token),
   deleteUser: (id, token) => fetchWithAuth(`users/${id}`, { method: 'DELETE' }, token),
 
   // --- Auth ---
-  login: (credentials) =>
-    fetchWithAuth('auth/sign_in', { method: 'POST', body: credentials }),
-  register: (userData) =>
-    fetchWithAuth('auth/signup', { method: 'POST', body: userData }),
+  login: (credentials) => fetchWithAuth('auth/sign_in', { method: 'POST', body: credentials }),
+  register: (userData) => fetchWithAuth('auth/signup', { method: 'POST', body: userData }),
   refreshToken: () => fetchWithAuth('auth/refresh', { method: 'POST' }),
   logout: (token) => fetchWithAuth('auth/logout', { method: 'POST' }, token),
   verifyEmail: (token) => fetchWithAuth(`auth/verify?token=${token}`, { method: 'GET' }),

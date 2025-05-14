@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import DashboardHeader from "../../components/DashboardHeader";
+
 import api from "../../state/api";
 
 const SignUp = () => {
@@ -37,7 +37,7 @@ const SignUp = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <DashboardHeader pageTitle="POS System - Sign Up" />
+
       <main className="flex-grow flex items-center justify-center p-4 ml-[250px]">
         <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-md">
           <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
