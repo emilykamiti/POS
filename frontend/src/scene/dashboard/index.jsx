@@ -12,10 +12,13 @@ const api = {
     });
     return response.data;
   },
-  getProducts: async ({ page, pageSize, sort, search }) => {
-    const response = await axios.get(`${baseUrl}/api/products`, {
-      params: { page, size: pageSize, sort, search },
-    });
+  getProducts: async ({ page, pageSize, sort, search, category }) => {
+    const params = { page, size: pageSize, sort, search };
+    if (category && category !== 'All') {
+      params.category = category;
+    }
+    console.log('Fetching products with params:', params); // Debug API call
+    const response = await axios.get(`${baseUrl}/api/products`, { params });
     return response.data;
   },
   createSale: async (saleData) => {
@@ -32,6 +35,7 @@ const Dashboard = () => {
   const [activeCategory, setActiveCategory] = useState('All');
   const [paymentMethod, setPaymentMethod] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [customerId, setCustomerId] = useState('');
   const [amountReceived, setAmountReceived] = useState('');
   const [change, setChange] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -49,46 +53,54 @@ const Dashboard = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [categoryResult, productResult] = await Promise.all([
-        api.getCategories({ page, pageSize, sort, search }).catch((err) => {
-          console.error('Categories fetch error:', err.response?.data || err);
-          throw err;
-        }),
-        api.getProducts({ page, pageSize, sort, search }).catch((err) => {
-          console.error('Products fetch error:', err.response?.data || err);
-          throw err;
-        }),
-      ]);
-
+      // Fetch categories
+      const categoryResult = await api.getCategories({ page, pageSize, sort, search }).catch((err) => {
+        console.error('Categories fetch error:', err.response?.data || err);
+        throw err;
+      });
       const uniqueCategories = [
         ...new Set(
           categoryResult.content
-            ?.filter((cat) => cat.name)
+            ?.filter((cat) => cat?.name)
             ?.map((cat) => cat.name) || []
         ),
       ];
+      console.log('Fetched categories:', uniqueCategories); // Debug
       setCategories(uniqueCategories);
 
+      // Fetch products
+      const productResult = await api.getProducts({
+        page,
+        pageSize,
+        sort,
+        search,
+        category: activeCategory,
+      }).catch((err) => {
+        console.error('Products fetch error:', err.response?.data || err);
+        throw err;
+      });
+
       const validProducts = productResult.content
-        ?.filter((product) => product.id && product.name)
+        ?.filter((product) => product?.id && product?.name)
         ?.map((product) => ({
           id: product.id,
           name: product.name,
           price: product.price || 0,
-          category: product.category?.name || 'Uncategorized',
+          category: product.category || 'Uncategorized',
           image: product.image || './assets/default.jpeg',
         })) || [];
-
+      console.log('Fetched products:', validProducts); // Debug
       setProducts(validProducts);
     } catch (err) {
       const errorMessage =
         err.response?.status === 401
           ? 'Unauthorized access. Please log in again.'
           : err.response?.status === 403
-          ? 'You lack the required permissions (ROLE_ADMIN) to perform this action.'
+          ? 'You lack the required permissions to perform this action.'
           : err.response?.data?.message || 'Failed to load data. Please try again.';
       setError(errorMessage);
       console.error('Fetch error:', err);
+      setProducts([]); // Reset products on error
     } finally {
       setIsLoading(false);
     }
@@ -98,12 +110,7 @@ const Dashboard = () => {
     if (isAuthenticated) {
       fetchData();
     }
-  }, [isAuthenticated]);
-
-  const filteredProducts =
-    activeCategory === 'All'
-      ? products
-      : products.filter((product) => product.category === activeCategory);
+  }, [isAuthenticated, activeCategory]); // Re-fetch on category change
 
   const subtotal = selectedItems.reduce(
     (sum, item) => sum + item.price * item.quantity,
@@ -160,6 +167,9 @@ const Dashboard = () => {
     setSuccess('');
 
     try {
+      if (!customerId) {
+        throw new Error('Please enter a customer ID.');
+      }
       const saleRequest = {
         items: selectedItems.map((item) => ({
           productId: item.id,
@@ -170,6 +180,7 @@ const Dashboard = () => {
         currency: 'KES',
         discountPercentage: discountPercentage / 100,
         taxPercentage: taxPercentage / 100,
+        customerId: parseInt(customerId),
       };
 
       const response = await api.createSale(saleRequest);
@@ -184,6 +195,7 @@ const Dashboard = () => {
         );
         setSelectedItems([]);
         setPhoneNumber('');
+        setCustomerId('');
         setAmountReceived('');
         setPaymentMethod(null);
         setDiscountPercentage(0);
@@ -192,12 +204,14 @@ const Dashboard = () => {
       }
     } catch (err) {
       const errorMessage =
-        err.response?.status === 400
-          ? err.response?.data?.message || err.response?.data?.detail || 'Invalid sale request. Please check the payment method and items.'
+        err.message === 'Please enter a customer ID.'
+          ? err.message
+          : err.response?.status === 400
+          ? err.response?.data?.message || 'Invalid sale request. Please check the customer ID, payment method, and items.'
           : err.response?.status === 401
           ? 'Unauthorized access. Please log in again.'
           : err.response?.status === 403
-          ? 'You lack the required permissions (ROLE_ADMIN) to process sales.'
+          ? 'You lack the required permissions to process sales.'
           : err.response?.data?.message || 'Failed to process payment';
       setError(errorMessage);
       console.error('Payment error:', err.response?.data || err);
@@ -236,7 +250,7 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="p-6 min-h-screen bg-gray-100 p-6 flex flex-col gap-6 box-border">
+    <div className="p-6 min-h-screen bg-gray-100 flex flex-col gap-6 box-border">
       {isLoading && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-4 rounded-lg shadow-lg">
@@ -277,15 +291,15 @@ const Dashboard = () => {
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="flex-1 bg-white rounded-lg shadow p-4">
           <h2 className="text-lg font-semibold mb-4 text-gray-900">Menu</h2>
-          {filteredProducts.length === 0 && !isLoading ? (
+          {products.length === 0 && !isLoading ? (
             <p className="text-gray-500 text-center py-4">
-              {products.length === 0
+              {activeCategory === 'All'
                 ? 'No products available'
-                : 'No products in this category'}
+                : `No products in ${activeCategory}`}
             </p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredProducts.map((item) => {
+              {products.map((item) => {
                 const itemInCart = selectedItems.find((i) => i.id === item.id);
                 return (
                   <div
@@ -343,6 +357,21 @@ const Dashboard = () => {
 
         <div className="w-full lg:w-1/3 bg-white rounded-lg shadow p-4 flex flex-col">
           <h2 className="text-lg font-semibold mb-4 text-gray-900">Order Details</h2>
+          <div className="mb-4">
+            <label htmlFor="customerId" className="block text-sm font-medium text-gray-700">
+              Customer ID
+            </label>
+            <input
+              id="customerId"
+              type="number"
+              placeholder="Enter Customer ID"
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded mt-1 bg-white text-gray-900"
+              disabled={isLoading}
+              required
+            />
+          </div>
           <div className="flex-1 overflow-y-auto max-h-64">
             {selectedItems.length === 0 ? (
               <p className="text-gray-500 text-sm text-center py-4">
@@ -499,7 +528,8 @@ const Dashboard = () => {
                   disabled={
                     isLoading ||
                     selectedItems.length === 0 ||
-                    phoneNumber.length < 10
+                    phoneNumber.length < 10 ||
+                    !customerId
                   }
                 >
                   {isLoading ? 'Processing...' : 'Initiate M-PESA Payment'}
@@ -526,7 +556,8 @@ const Dashboard = () => {
                   disabled={
                     isLoading ||
                     selectedItems.length === 0 ||
-                    parseFloat(amountReceived) < parseFloat(total)
+                    parseFloat(amountReceived) < parseFloat(total) ||
+                    !customerId
                   }
                 >
                   {isLoading ? 'Processing...' : 'Complete Payment'}

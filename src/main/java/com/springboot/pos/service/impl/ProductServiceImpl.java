@@ -13,6 +13,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -27,8 +28,35 @@ public class ProductServiceImpl implements ProductService {
     private final ModelMapper mapper;
 
     @Override
+    @Transactional
     public ProductDto createProduct(ProductDto productDto) {
-        Product product = mapToEntity(productDto);
+        Category category = categoryRepository.findByName(productDto.getCategoryName())
+                .orElseGet(() -> {
+                    Category newCategory = new Category();
+                    newCategory.setName(productDto.getCategoryName());
+                    return categoryRepository.save(newCategory);
+                });
+
+        Supplier supplier = supplierRepository.findByName(productDto.getSupplierName())
+                .orElseGet(() -> {
+                    Supplier newSupplier = new Supplier();
+                    newSupplier.setName(productDto.getSupplierName());
+                    return supplierRepository.save(newSupplier);
+                });
+
+        Product product = new Product();
+        product.setName(productDto.getName());
+        product.setPrice(productDto.getPrice());
+        product.setStock(productDto.getStock());
+        product.setStatus(productDto.getStatus());
+        product.setDescription(productDto.getDescription());
+        product.setReservedStock(productDto.getReservedStock());
+        product.setLowStockThreshold(productDto.getLowStockThreshold());
+        product.setLowStockMinimumOrder(productDto.getLowStockMinimumOrder());
+        product.setImageUrl(productDto.getImageUrl());
+        product.setCategory(category);
+        product.setSupplier(supplier);
+
         Product newProduct = productRepository.save(product);
         return mapToDTO(newProduct);
     }
@@ -41,12 +69,18 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public PagedResponse<ProductDto> getAllProducts(int pageNo, int pageSize, String sortBy, String sortDir) {
+    public PagedResponse<ProductDto> getAllProducts(int pageNo, int pageSize, String sortBy, String sortDir, String category) {
         Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name())
                 ? Sort.by(sortBy).ascending()
                 : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(pageNo, pageSize, sort);
-        Page<Product> products = productRepository.findAll(pageable);
+
+        Page<Product> products;
+        if (category != null && !category.isEmpty() && !"All".equalsIgnoreCase(category)) {
+            products = productRepository.findByCategoryName(category, pageable);
+        } else {
+            products = productRepository.findAll(pageable);
+        }
 
         List<ProductDto> content = products.getContent()
                 .stream()
@@ -65,17 +99,34 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional
     public ProductDto updateProduct(ProductDto productDto, long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
-        Category category = categoryRepository.findById(productDto.getCategoryId())
-                .orElseThrow(() -> new ResourceNotFoundException("Category", "id", productDto.getCategoryId()));
-        Supplier supplier = supplierRepository.findById(productDto.getSupplierId())
-                .orElseThrow(() -> new ResourceNotFoundException("Supplier", "id", productDto.getSupplierId()));
+
+        Category category = categoryRepository.findByName(productDto.getCategoryName())
+                .orElseGet(() -> {
+                    Category newCategory = new Category();
+                    newCategory.setName(productDto.getCategoryName());
+                    return categoryRepository.save(newCategory);
+                });
+
+        Supplier supplier = supplierRepository.findByName(productDto.getSupplierName())
+                .orElseGet(() -> {
+                    Supplier newSupplier = new Supplier();
+                    newSupplier.setName(productDto.getSupplierName());
+                    return supplierRepository.save(newSupplier);
+                });
+
         product.setName(productDto.getName());
         product.setPrice(productDto.getPrice());
         product.setStock(productDto.getStock());
-        product.setUpdatedAt(productDto.getUpdatedAt());
+        product.setReservedStock(productDto.getReservedStock());
+        product.setLowStockThreshold(productDto.getLowStockThreshold());
+        product.setLowStockMinimumOrder(productDto.getLowStockMinimumOrder());
+        product.setStatus(productDto.getStatus());
+        product.setDescription(productDto.getDescription());
+        product.setImageUrl(productDto.getImageUrl());
         product.setCategory(category);
         product.setSupplier(supplier);
 
@@ -84,16 +135,19 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional
     public void deleteProductById(long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
         productRepository.delete(product);
     }
 
+    @Transactional
     public void reserveStockForSale(SaleRequestDto saleRequest) {
         for (SaleItemRequestDto itemDto : saleRequest.getItems()) {
-            ProductDto productDto = getProductById(itemDto.getProductId());
-            Product product = mapToEntity(productDto);
+            Product product = productRepository.findById(itemDto.getProductId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Product", "id", itemDto.getProductId()));
+
             int availableStock = product.getStock() - product.getReservedStock();
             if (availableStock < itemDto.getQuantity()) {
                 throw new IllegalArgumentException(
@@ -107,10 +161,12 @@ public class ProductServiceImpl implements ProductService {
         }
     }
 
+    @Transactional
     public void releaseReservedStock(SaleRequestDto saleRequest) {
         for (SaleItemRequestDto itemDto : saleRequest.getItems()) {
-            ProductDto productDto = getProductById(itemDto.getProductId());
-            Product product = mapToEntity(productDto);
+            Product product = productRepository.findById(itemDto.getProductId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Product", "id", itemDto.getProductId()));
+
             product.setReservedStock(product.getReservedStock() - itemDto.getQuantity());
             if (product.getReservedStock() < 0) {
                 product.setReservedStock(0);
@@ -119,14 +175,17 @@ public class ProductServiceImpl implements ProductService {
         }
     }
 
+    @Transactional
     public void updateProductStock(Product product, int quantitySold) {
         int newStock = product.getStock() - quantitySold;
         int newReservedStock = product.getReservedStock() - quantitySold;
         product.setStock(newStock);
         product.setReservedStock(Math.max(newReservedStock, 0));
         checkLowStock(product);
+        productRepository.save(product);
     }
 
+    @Transactional
     public void saveAllProducts(List<Product> products) {
         productRepository.saveAll(products);
     }
@@ -175,10 +234,34 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private ProductDto mapToDTO(Product product) {
-        return mapper.map(product, ProductDto.class);
+        ProductDto dto = new ProductDto();
+        dto.setId(product.getId());
+        dto.setName(product.getName());
+        dto.setPrice(product.getPrice());
+        dto.setStock(product.getStock());
+        dto.setStatus(product.getStatus());
+        dto.setDescription(product.getDescription());
+        dto.setReservedStock(product.getReservedStock());
+        dto.setLowStockThreshold(product.getLowStockThreshold());
+        dto.setLowStockMinimumOrder(product.getLowStockMinimumOrder());
+        dto.setImageUrl(product.getImageUrl());
+        dto.setCategoryName(product.getCategory() != null ? product.getCategory().getName() : "Uncategorized");
+        dto.setSupplierName(product.getSupplier() != null ? product.getSupplier().getName() : "Unknown");
+        return dto;
     }
 
     public Product mapToEntity(ProductDto productDto) {
-        return mapper.map(productDto, Product.class);
+        Product product = new Product();
+        product.setId(productDto.getId());
+        product.setName(productDto.getName());
+        product.setPrice(productDto.getPrice());
+        product.setStock(productDto.getStock());
+        product.setStatus(productDto.getStatus());
+        product.setDescription(productDto.getDescription());
+        product.setReservedStock(productDto.getReservedStock());
+        product.setLowStockThreshold(productDto.getLowStockThreshold());
+        product.setLowStockMinimumOrder(productDto.getLowStockMinimumOrder());
+        product.setImageUrl(productDto.getImageUrl());
+        return product;
     }
 }

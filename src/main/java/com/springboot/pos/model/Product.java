@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.util.Date;
@@ -28,6 +29,11 @@ public class Product {
     @Column(name = "name", nullable = false)
     private String name;
 
+    private String description;
+
+    private String imageUrl;
+
+
     @Column(columnDefinition = "ENUM('AVAILABLE', 'NOT_AVAILABLE')", nullable = false)
     private String status;
 
@@ -37,7 +43,7 @@ public class Product {
     @Column(name = "stock", nullable = false)
     private int stock;
 
-    @Column(name = "reserved_stock", nullable = false) // Added for stock reservation
+    @Column(name = "reserved_stock", nullable = false)
     private int reservedStock;
 
     @CreationTimestamp
@@ -49,10 +55,10 @@ public class Product {
     private Date updatedAt;
 
     @ManyToOne
-    @JoinColumn(name = "category_id", nullable = false)
+    @JoinColumn(name = "categoryName", nullable = false)
     private Category category;
 
     @ManyToOne
-    @JoinColumn(name = "supplier_id", nullable = false)
+    @JoinColumn(name = "supplierName", nullable = false)
     private Supplier supplier;
 }

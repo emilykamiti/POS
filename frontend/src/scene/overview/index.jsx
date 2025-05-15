@@ -176,10 +176,12 @@ const Overview = () => {
   ];
 
   return (
-    <div className={`p-6 min-h-screen ${mode === 'dark' ? 'bg-gray-900 text-gray-100' : 'bg-gray-100 text-gray-900'}`}>
+
+    <div className={`p-8 min-h-screen ${mode === 'dark' ? 'bg-gray-900 text-gray-100' : 'bg-gray-100 text-gray-900'}`}>
+      <Header title="Sales Reports"  />
       <div className="max-w-7xl mx-auto">
-        <Header title="Sales Reports" subtitle="Analytical insights for your POS system" />
-        
+{/*         <Header title="Sales Reports"  /> */}
+
         {/* Error Message */}
         {error && (
           <div
@@ -190,30 +192,7 @@ const Overview = () => {
           </div>
         )}
 
-        {/* Filters */}
-        <div className="mb-6 flex flex-col md:flex-row gap-4 items-start md:items-center">
-          <div className="w-full md:w-auto">
-            <label
-              htmlFor="dateRange"
-              className={`block mb-2 font-medium ${mode === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}
-            >
-              Date Range
-            </label>
-            <DatePicker
-              id="dateRange"
-              selectsRange
-              startDate={startDate}
-              endDate={endDate}
-              onChange={(update) => setDateRange(update)}
-              className={`w-full md:w-64 px-4 py-2 rounded-lg border focus:ring-2 focus:ring-blue-500 ${
-                mode === 'dark' ? 'bg-gray-800 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-900'
-              }`}
-              placeholderText="Select date range"
-              aria-label="Select date range for sales report"
-            />
-          </div>
 
-        </div>
 
         {/* Metrics */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">

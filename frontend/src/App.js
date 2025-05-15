@@ -22,12 +22,11 @@ function App() {
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            <Route path="/home" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
             <Route path="/verifyemail" element={<VerifyEmail />} />
             <Route element={<Layout />}>
-              <Route path="/" element={<Navigate to="/home" replace />} />
+              <Route path="/" element={<Navigate to="/login" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/products" element={<Products />} />
               <Route path="/customers" element={<Customers />} />

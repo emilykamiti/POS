@@ -1,5 +1,6 @@
 package com.springboot.pos.payload;
 
+import jakarta.persistence.Column;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.Data;
@@ -10,6 +11,7 @@ import java.util.Set;
 
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
+import org.springframework.web.multipart.MultipartFile;
 
 @Data
 public class ProductDto {
@@ -33,15 +35,18 @@ public class ProductDto {
     @NotNull
     private int stock;
 
+    private String description;
+
+    private String imageUrl;
+
+
+
     @NotNull
     private BigDecimal price;
 
-
-    private Long categoryId;
-//    private String categoryName;
-
-    private Long supplierId;
-//    private String supplierName;
+    private int reservedStock;
+    private String categoryName;
+    private String supplierName;
 
 
 }

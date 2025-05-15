@@ -57,14 +57,19 @@ const Transactions = () => {
   // Table columns (same as before)
   const columns = [
     { field: 'id', headerName: 'ID', sortable: true },
-    { field: 'checkoutRequestId', headerName: 'Checkout Request ID', sortable: true },
-    { field: 'phoneNumber', headerName: 'Phone Number', sortable: true },
+    { field: 'checkoutRequestId',
+     headerName: 'Checkout Request ID',
+     sortable: true
+     },
+
     {
       field: 'amount',
       headerName: 'Amount',
       sortable: true,
       render: (value, row) => `${value.toFixed(2)} ${row.currency || 'KES'}`,
     },
+
+   { field: 'phoneNumber', headerName: 'Phone Number', sortable: true },
     {
       field: 'status',
       headerName: 'Status',

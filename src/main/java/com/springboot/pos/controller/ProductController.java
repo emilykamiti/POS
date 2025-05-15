@@ -22,7 +22,6 @@ public class ProductController {
         this.productService = productService;
     }
 
-//    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<ProductDto> createProduct(@Valid @RequestBody ProductDto productDto) {
         logger.info("Creating product: {}", productDto.getName());
@@ -31,19 +30,17 @@ public class ProductController {
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
-
     @GetMapping
     public PagedResponse<ProductDto> getAllProducts(
             @RequestParam(value = "pageNo", defaultValue = AppConstants.DEFAULT_PAGE_NUMBER, required = false) int pageNo,
             @RequestParam(value = "pageSize", defaultValue = AppConstants.DEFAULT_PAGE_SIZE, required = false) int pageSize,
             @RequestParam(value = "sortBy", defaultValue = AppConstants.DEFAULT_SORT_BY, required = false) String sortBy,
-            @RequestParam(value = "sortDir", defaultValue = AppConstants.DEFAULT_SORT_DIRECTION, required = false) String sortDir
-    ) {
-        logger.info("Fetching all products - page: {}, size: {}, sortBy: {}, sortDir: {}", pageNo, pageSize, sortBy, sortDir);
-        return productService.getAllProducts(pageNo, pageSize, sortBy, sortDir);
+            @RequestParam(value = "sortDir", defaultValue = AppConstants.DEFAULT_SORT_DIRECTION, required = false) String sortDir,
+            @RequestParam(value = "category", required = false) String category) {
+        logger.info("Fetching products - page: {}, size: {}, sortBy: {}, sortDir: {}, category: {}", pageNo, pageSize, sortBy, sortDir, category);
+        return productService.getAllProducts(pageNo, pageSize, sortBy, sortDir, category);
     }
 
-//    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/{id}")
     public ResponseEntity<ProductDto> getProductById(@PathVariable(name = "id") long id) {
         logger.info("Fetching product with ID: {}", id);

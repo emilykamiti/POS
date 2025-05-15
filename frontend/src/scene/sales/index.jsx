@@ -54,12 +54,7 @@ const Sales = () => {
       sortable: true,
       render: (value) => new Date(value).toLocaleString(),
     },
-    {
-      field: 'subtotalPrice',
-      headerName: 'Subtotal Price',
-      sortable: true,
-      render: (value) => `${value.toFixed(2)} KES`,
-    },
+
     {
       field: 'discountAmount',
       headerName: 'Discount Amount',
