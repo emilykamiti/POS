@@ -89,6 +89,7 @@ const api = {
   refreshToken: () => fetchWithAuth('auth/refresh', { method: 'POST' }),
   logout: (token) => fetchWithAuth('auth/logout', { method: 'POST' }, token),
   verifyEmail: (token) => fetchWithAuth(`auth/verify?token=${token}`, { method: 'GET' }),
+    getCurrentUser: (token) => fetchWithAuth('auth/me', {}, token),
 };
 
 export default api;

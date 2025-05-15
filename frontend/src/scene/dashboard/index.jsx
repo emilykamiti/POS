@@ -266,7 +266,7 @@ const Dashboard = () => {
       )}
 
       {success && (
-        <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded">
+        <div className="bg-gray-100 border-l-4 border-gray-500 text-gray-700 p-4 rounded">
           <p>{success}</p>
         </div>
       )}
@@ -278,7 +278,7 @@ const Dashboard = () => {
             onClick={() => setActiveCategory(category)}
             className={`px-4 py-2 rounded-full text-sm font-medium mx-1 transition-colors ${
               activeCategory === category
-                ? 'bg-purple-600 text-white'
+                ? 'bg-gray-600 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
             disabled={isLoading}
@@ -316,13 +316,13 @@ const Dashboard = () => {
                     />
                     <div className="p-3">
                       <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                      <p className="text-purple-600 font-semibold">
+                      <p className="text-gray-600 font-semibold">
                         KES {item.price.toFixed(2)}
                       </p>
                       <div className="flex justify-between items-center mt-2">
                         <button
                           onClick={() => handleAddItem(item)}
-                          className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 disabled:opacity-50"
+                          className="bg-gray-700 text-white px-3 py-1 rounded hover:bg-grey-100 disabled:opacity-50"
                           disabled={isLoading}
                         >
                           Add
@@ -339,7 +339,7 @@ const Dashboard = () => {
                             <span className="text-gray-900">{itemInCart.quantity}</span>
                             <button
                               onClick={() => handleQuantityChange(item.id, 1)}
-                              className="text-purple-600 hover:text-purple-800 disabled:opacity-50"
+                              className="text-gray-600 hover:text-gray-800 disabled:opacity-50"
                               disabled={isLoading}
                             >
                               +
@@ -400,7 +400,7 @@ const Dashboard = () => {
                     <span className="text-gray-900">{item.quantity}</span>
                     <button
                       onClick={() => handleQuantityChange(item.id, 1)}
-                      className="text-purple-600 hover:text-purple-800 disabled:opacity-50"
+                      className="text-gray-600 hover:text-gray-800 disabled:opacity-50"
                       disabled={isLoading}
                     >
                       +
@@ -524,7 +524,7 @@ const Dashboard = () => {
                 />
                 <button
                   onClick={handleMpesaPayment}
-                  className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50"
+                  className="w-full bg-gray-600 text-white py-2 rounded hover:bg-gray-700 disabled:opacity-50"
                   disabled={
                     isLoading ||
                     selectedItems.length === 0 ||

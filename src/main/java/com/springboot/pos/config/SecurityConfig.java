@@ -50,7 +50,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/products").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/sales").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/customers").hasRole("ADMIN")
-                        .requestMatchers("/api/mpesa/callback").permitAll()
+                        .requestMatchers("/api/auth/me").authenticated()
+                                .requestMatchers("/api/mpesa/callback").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

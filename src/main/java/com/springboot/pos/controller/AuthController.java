@@ -5,6 +5,7 @@ import com.springboot.pos.model.User;
 import com.springboot.pos.payload.JwtResponse;
 import com.springboot.pos.payload.LoginDto;
 import com.springboot.pos.payload.SignUpDto;
+import com.springboot.pos.payload.UserDto;
 import com.springboot.pos.repository.RoleRepository;
 import com.springboot.pos.repository.UserRepository;
 import com.springboot.pos.service.NotificationService;
@@ -18,13 +19,16 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -127,5 +131,34 @@ public class AuthController {
         logger.info("Email verified successfully for user {}", user.getEmail());
 
         return ResponseEntity.ok("Email verified successfully");
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
+        try {
+
+            String username = userDetails.getUsername();
+
+            User user = userRepository.findByUsernameOrEmail(username, username)
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+            UserDto userDto = new UserDto();
+            userDto.setId(user.getId());
+            userDto.setName(user.getName());
+            userDto.setUsername(user.getUsername());
+            userDto.setEmail(user.getEmail());
+            userDto.setRoles(user.getRoles().stream()
+                    .map(Role::getName)
+                    .collect(Collectors.toSet()));
+
+            logger.info("Fetched current user details for {}", username);
+            return ResponseEntity.ok(userDto);
+        } catch (UsernameNotFoundException e) {
+            logger.error("Failed to fetch current user: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
+        } catch (Exception e) {
+            logger.error("Error fetching current user: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error fetching user data");
+        }
     }
 }

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Download, Printer } from 'lucide-react'; // For search, export, and print icons
-import { FaCog, FaChevronDown } from 'react-icons/fa'; // For action menu icons
-import Papa from 'papaparse'; // For CSV export
+import { Search, Download, Printer } from 'lucide-react';
+import { FaCog, FaChevronDown } from 'react-icons/fa';
+import Papa from 'papaparse';
 
 const DataTable = ({
   columns,
@@ -16,7 +16,7 @@ const DataTable = ({
   sort,
   handleSort,
   className = '',
-  actions = [], // Array of action objects: [{ label, handler, className }]
+  actions = [],
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [actionMenu, setActionMenu] = useState(null);
