@@ -11,6 +11,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
 
 @RestController
 @RequestMapping("/api/products")
@@ -22,10 +25,12 @@ public class ProductController {
         this.productService = productService;
     }
 
-    @PostMapping
-    public ResponseEntity<ProductDto> createProduct(@Valid @RequestBody ProductDto productDto) {
+    @PostMapping(consumes = {"multipart/form-data"})
+    public ResponseEntity<ProductDto> createProduct(
+            @RequestPart("product") @Valid ProductDto productDto,
+            @RequestPart(value = "image", required = false) MultipartFile image) throws IOException {
         logger.info("Creating product: {}", productDto.getName());
-        ProductDto response = productService.createProduct(productDto);
+        ProductDto response = productService.createProduct(productDto, image);
         logger.info("Product created with ID: {}", response.getId());
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
@@ -49,10 +54,13 @@ public class ProductController {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
-    @PutMapping("/{id}")
-    public ResponseEntity<ProductDto> updateProduct(@Valid @RequestBody ProductDto productDto, @PathVariable(name = "id") long id) {
+    @PutMapping(value = "/{id}", consumes = {"multipart/form-data"})
+    public ResponseEntity<ProductDto> updateProduct(
+            @RequestPart("product") @Valid ProductDto productDto,
+            @RequestPart(value = "image", required = false) MultipartFile image,
+            @PathVariable(name = "id") long id) throws IOException {
         logger.info("Updating product with ID: {}", id);
-        ProductDto response = productService.updateProduct(productDto, id);
+        ProductDto response = productService.updateProduct(productDto, id, image);
         logger.info("Product updated successfully: {}", response.getId());
         return new ResponseEntity<>(response, HttpStatus.OK);
     }

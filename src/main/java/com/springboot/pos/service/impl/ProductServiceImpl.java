@@ -8,28 +8,40 @@ import com.springboot.pos.service.NotificationService;
 import com.springboot.pos.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class ProductServiceImpl implements ProductService {
+    private static final Logger logger = LoggerFactory.getLogger(ProductServiceImpl.class); // Fixed logger
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final SupplierRepository supplierRepository;
     private final NotificationService emailNotificationService;
     private final ModelMapper mapper;
 
+    private static final String IMAGE_UPLOAD_DIR = "src/main/resources/static/images/";
+    private static final String IMAGE_ACCESS_PATH = "/images/";
+
     @Override
     @Transactional
-    public ProductDto createProduct(ProductDto productDto) {
+    public ProductDto createProduct(ProductDto productDto, MultipartFile image) throws IOException {
         Category category = categoryRepository.findByName(productDto.getCategoryName())
                 .orElseGet(() -> {
                     Category newCategory = new Category();
@@ -53,9 +65,15 @@ public class ProductServiceImpl implements ProductService {
         product.setReservedStock(productDto.getReservedStock());
         product.setLowStockThreshold(productDto.getLowStockThreshold());
         product.setLowStockMinimumOrder(productDto.getLowStockMinimumOrder());
-        product.setImageUrl(productDto.getImageUrl());
         product.setCategory(category);
         product.setSupplier(supplier);
+
+        if (image != null && !image.isEmpty()) {
+            String imageUrl = saveImage(image);
+            product.setImageUrl(imageUrl);
+        } else {
+            product.setImageUrl(productDto.getImageUrl());
+        }
 
         Product newProduct = productRepository.save(product);
         return mapToDTO(newProduct);
@@ -100,7 +118,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
-    public ProductDto updateProduct(ProductDto productDto, long id) {
+    public ProductDto updateProduct(ProductDto productDto, long id, MultipartFile image) throws IOException {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
 
@@ -126,9 +144,15 @@ public class ProductServiceImpl implements ProductService {
         product.setLowStockMinimumOrder(productDto.getLowStockMinimumOrder());
         product.setStatus(productDto.getStatus());
         product.setDescription(productDto.getDescription());
-        product.setImageUrl(productDto.getImageUrl());
         product.setCategory(category);
         product.setSupplier(supplier);
+
+        if (image != null && !image.isEmpty()) {
+            String imageUrl = saveImage(image);
+            product.setImageUrl(imageUrl);
+        } else if (productDto.getImageUrl() != null) {
+            product.setImageUrl(productDto.getImageUrl());
+        }
 
         Product updatedProduct = productRepository.save(product);
         return mapToDTO(updatedProduct);
@@ -139,6 +163,9 @@ public class ProductServiceImpl implements ProductService {
     public void deleteProductById(long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
+        if (product.getImageUrl() != null) {
+            deleteImage(product.getImageUrl());
+        }
         productRepository.delete(product);
     }
 
@@ -263,5 +290,55 @@ public class ProductServiceImpl implements ProductService {
         product.setLowStockMinimumOrder(productDto.getLowStockMinimumOrder());
         product.setImageUrl(productDto.getImageUrl());
         return product;
+    }
+
+    private String saveImage(MultipartFile image) throws IOException {
+        // Ensure the upload directory exists
+        File directory = new File(IMAGE_UPLOAD_DIR);
+        if (!directory.exists()) {
+            boolean created = directory.mkdirs();
+            if (!created) {
+                logger.error("Failed to create directory: {}", IMAGE_UPLOAD_DIR);
+                throw new IOException("Could not create image upload directory");
+            }
+        }
+
+        // Generate a unique filename
+        String originalFilename = image.getOriginalFilename();
+        if (originalFilename == null || originalFilename.isEmpty()) {
+            throw new IOException("Invalid file name");
+        }
+        String extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+        String uniqueFilename = System.currentTimeMillis() + extension;
+        Path filePath = Paths.get(IMAGE_UPLOAD_DIR, uniqueFilename);
+
+        // Save the file
+        try {
+            Files.write(filePath, image.getBytes());
+            logger.info("Image saved successfully at: {}", filePath);
+        } catch (IOException e) {
+            logger.error("Failed to save image: {}", uniqueFilename, e);
+            throw new IOException("Could not save image file", e);
+        }
+
+        // Return the URL to access the image
+        return IMAGE_ACCESS_PATH + uniqueFilename;
+    }
+
+    private void deleteImage(String imageUrl) {
+        if (imageUrl != null && imageUrl.startsWith(IMAGE_ACCESS_PATH)) {
+            String filename = imageUrl.replace(IMAGE_ACCESS_PATH, "");
+            Path filePath = Paths.get(IMAGE_UPLOAD_DIR, filename);
+            try {
+                boolean deleted = Files.deleteIfExists(filePath);
+                if (deleted) {
+                    logger.info("Image deleted successfully: {}", filePath);
+                } else {
+                    logger.warn("Image file not found for deletion: {}", filePath);
+                }
+            } catch (IOException e) {
+                logger.error("Failed to delete image: {}", imageUrl, e);
+            }
+        }
     }
 }

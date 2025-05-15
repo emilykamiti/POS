@@ -30,6 +30,9 @@ const Products = () => {
     handleSort,
   } = useTableParams();
 
+  // Base URL for images (adjust based on your backend server)
+  const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+
   // Fetch products
   const fetchProducts = async () => {
     setIsLoading(true);
@@ -37,7 +40,10 @@ const Products = () => {
     try {
       const result = await api.getProducts({ page, pageSize, sort, search }, token);
       setData({
-        products: result.content || [],
+        products: result.content.map(product => ({
+          ...product,
+          imageUrl: product.imageUrl ? `${BASE_URL}${product.imageUrl}` : null,
+        })) || [],
         total: result.totalElements || 0,
       });
     } catch (err) {
@@ -52,15 +58,15 @@ const Products = () => {
   }, [page, pageSize, sort, search, token]);
 
   // Handle create/update product
-  const handleSubmit = async (productData) => {
+  const handleSubmit = async (formData) => {
     try {
       setIsLoading(true);
       setError(null);
       if (currentProduct) {
-        await api.updateProduct(currentProduct.id, productData, token);
+        await api.updateProduct(currentProduct.id, formData, token);
         setSuccessMessage('Product updated successfully');
       } else {
-        await api.createProduct(productData, token);
+        await api.createProduct(formData, token);
         setSuccessMessage('Product created successfully');
       }
       setOpenForm(false);
@@ -245,7 +251,7 @@ const Products = () => {
                       <div>
                         <span className="font-medium">Supplier:</span> {product.supplierName || 'N/A'}
                       </div>
-                      {product.lowStockThreshold && (
+                      {product.lowStockThreshold > 0 && (
                         <div className="text-xs text-yellow-600 dark:text-yellow-400">
                           Low stock threshold: {product.lowStockThreshold}
                         </div>
@@ -363,5 +369,3 @@ const Products = () => {
 };
 
 export default Products;
-
-
